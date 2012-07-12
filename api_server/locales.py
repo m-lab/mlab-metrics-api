@@ -23,7 +23,7 @@ from datetime import datetime
 import logging
 import math
 import os
-from scipy.spatial import KDTree
+from deps.kdtree import KDTree
 
 LOCALE_DIR = '../maps'
 
@@ -81,12 +81,12 @@ class LocaleFinder(object):
                 self._data.append((cart, locale))
 
             self._ReportCollisions()
-            self._tree = KDTree([d[0] for d in self._data])
+            self._tree = KDTree(3, self._data)
 
         def FindNearestNeighbor(self, lat, lon):
             cart = self._LatLonToCartesian(lat, lon)
-            dist, key = self._tree.query(cart)
-            return self._data[key][1]
+            _, locale, _ = self._tree.nearest_neighbor(cart)
+            return locale
 
         def _LatLonToCartesian(self, lat, lon):
             """Translate latitude & longitude to cartesian coordinates.

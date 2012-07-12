@@ -19,12 +19,11 @@
 todo: Lots more text.
 """
 
-import bottle
-from bottle import request
-from bottle import route
-from bottle import static_file
-from bottle import view
-import gflags
+from deps import bottle
+from deps.bottle import request
+from deps.bottle import route
+from deps.bottle import view
+from google.appengine.ext.webapp.util import run_wsgi_app
 import json
 import os
 import re
@@ -34,22 +33,9 @@ import metrics
 import query_engine
 
 
-FLAGS = gflags.FLAGS
-
-gflags.DEFINE_bool('bottle_debug', False, 'Enable debugging mode in bottle.')
-gflags.DEFINE_string('host', 'localhost', 'The host to run the api server on.')
-gflags.DEFINE_integer('port', 8080, 'The port to run the api server on.')
-
-
 _locales_data = dict()
 _metrics_data = dict()
 _localefinder = locales.LocaleFinder()
-
-
-@route('/static/<filename>')
-def server_static(filename):
-    #todo: define static file path
-    return static_file(filename, root=os.path.join(os.curdir, 'static'))
 
 
 @route('/query')
@@ -90,7 +76,7 @@ def metric_details(metric_name=None):
         view['error'] = ('No such metric: <span id="metric_name">%s</span>'
                          % metric_name)
         return view
-    
+
     # Generate sample API query and its response.
     view['metric'] = _metrics_data[metric_name].Describe()
     view['sample_api_query'] = ('/query?query=metric&name=%s&year=2012&month=1'
@@ -158,5 +144,4 @@ def introduction():
 
 
 def start():
-    bottle.debug(FLAGS.bottle_debug)
-    bottle.run(host=FLAGS.host, port=FLAGS.port)
+    run_wsgi_app(bottle.default_app())

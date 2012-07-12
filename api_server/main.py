@@ -21,38 +21,14 @@
 todo: Lots more text.
 """
 
-import gflags
 import logging
 import server
 import sys
 
-FLAGS = gflags.FLAGS
-
-gflags.DEFINE_enum('logging_level', 'INFO',
-                   ['DEBUG', 'INFO', 'WARNING', 'ERROR'],
-                   'Verbosity of logging.')
-
 
 def main(argv):
-    # Parse flags via the gflags module.
-    try:
-        argv = FLAGS(argv)
-    except gflags.FlagsError, e:
-        print '%s\nUsage: %s ARGS\n%s' % (e, sys.argv[0], FLAGS)
-        sys.exit(1)
-
-    # Grab the logging level from gflags.
-    if FLAGS.logging_level == 'DEBUG':
-        verbosity = logging.DEBUG
-    elif FLAGS.logging_level == 'INFO':
-        verbosity = logging.INFO
-    elif FLAGS.logging_level == 'WARNING':
-        verbosity = logging.WARNING
-    else:
-        verbosity = logging.ERROR
-
     # Set up logging and start the server.
-    logging.basicConfig(level=verbosity)
+    logging.basicConfig(level=logging.INFO)
     server.start()
 
 
