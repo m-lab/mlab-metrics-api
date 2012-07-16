@@ -21,7 +21,6 @@
 todo: Lots more text.
 """
 
-from collections import defaultdict
 import os
 import time
 
@@ -29,8 +28,8 @@ INPUT_TIMESTAMP_FORMAT = '%m-%d-%Y'
 OUTPUT_TIMESTAMP_FORMAT = '%Y-%m'
 
 PDE_LOCALE_FILE = r'mlab_all_countries/%s_measurements.txt'
-BIGQUERY_METRICS_FILE = r'bigquery/%s.csv'
-BIGQUERY_SCHEMA_FILE = r'bigquery/SCHEMA.txt'
+BIGQUERY_METRICS_FILE = r'bigquery.metrics/%s.csv'
+BIGQUERY_SCHEMA_FILE = r'bigquery.metrics/SCHEMA.txt'
 
 LOCALES = ('city', 'region', 'country', 'world')
 
@@ -100,9 +99,9 @@ class BigQueryMetricsWriter(object):
 
     Sample Usage:
         writer = BigQueryMetricsWriter('my_fancy_metric')
-        writer.write('Sunnyvale, CA', time.struct_time(tm_year=2011, ...), 15.3)
-        writer.write('Sunnyvale, CA', time.struct_time(tm_year=2012, ...), 22.1)
-        writer.close()  # or 'del writer', or just let 'writer' go out of scope
+        writer.Write('Sunnyvale, CA', time.struct_time(tm_year=2011, ...), 15.3)
+        writer.Write('Sunnyvale, CA', time.struct_time(tm_year=2012, ...), 22.1)
+        writer.Close()  # or 'del writer', or just let 'writer' go out of scope
     """
 
     @staticmethod
@@ -165,8 +164,8 @@ class BigQueryMetricsWriter(object):
     def Close(self):
         """Closes the metric output file.
 
-        If write() is called subsequently, the file will be opened again and the
-        given data will be written out.  close() will need to be called again in
+        If Write() is called subsequently, the file will be opened again and the
+        given data will be written out.  Close() will need to be called again in
         this case.
         """
         self.fd.close()
