@@ -16,26 +16,7 @@
 
 """Runs an AppEngine webapp and issues a request to BigQuery.
 
-This is just a tiny program to demonstrate how to issue an authenticated request
-to BigQuery from AppEngine.  Note that you must first register your AppEngine
-account with the BigQuery project like so:
-
-  1. Determine your AppEngine Service Account Name via the Application Settings
-     page (under Administration).  This is an email address.  Look for:
-       <your_project_name>@appspot.gserviceaccount.com
-  2. Add this account email address to the Team page for your BigQuery project.
-     You must enable at least "Can view" access for the following code to work.
-  3. Change the 'PROJECT_ID' and 'TEST_QUERY' below, accordingly.
-  4. Set the 'application' target in app.yaml for your AppEngine project.
-  5. Upload this code to AppEngine.  It won't work with the 'dev_appserver.py'
-     script because AppEngine alone can act as your privileged Service Account.
-     Specifically, run:  enable-app-engine-project . && appcfg.py update .
-
-Depends on:
-  AppEngine Python API
-      -- https://developers.google.com/appengine/downloads
-  Google API Client Library & OAuth2 Client
-      -- http://code.google.com/p/google-api-python-client
+See the README file for more details.
 """
 
 import httplib2
