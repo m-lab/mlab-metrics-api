@@ -41,7 +41,8 @@ Register your AppEngine account with the BigQuery project.
 
 Fix the code with your details.
 ===============================
-  1. Change 'PROJECT_ID' and 'TEST_QUERY' in 'main.py'.
+  1. Set your BigQuery 'PROJECT_ID' and 'TEST_QUERY' in 'main.py'.  The BigQuery
+     project ID is listed on the Overview page of your Google API Console.
 
   2. Set the 'application' target in 'app.yaml' for your AppEngine project.
 
