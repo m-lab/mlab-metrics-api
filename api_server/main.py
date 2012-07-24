@@ -25,11 +25,18 @@ import logging
 import server
 import sys
 
+import big_query_client
+
+BIGQUERY_PROJECT_ID = 'measurement-lab'
+BIGQUERY_DATASET = 'metrics_api_server'
+
 
 def main(argv):
-    # Set up logging and start the server.
-    logging.basicConfig(level=logging.INFO)
-    server.start()
+    # Set up logging, connect to BigQuery, and start the web server.
+    logging.getLogger().setLevel(logging.DEBUG)
+    bigquery = big_query_client.BigQueryClient(
+        BIGQUERY_PROJECT_ID, BIGQUERY_DATASET)
+    server.start(bigquery)
 
 
 if __name__ == '__main__':

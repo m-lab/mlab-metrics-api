@@ -21,10 +21,10 @@ todo: Lots more text.
 
 from datetime import datetime
 import logging
-import os
 
-METRICS_DIR = '../data'
-INFO_FILE = 'metric_info.txt'
+import big_query_client
+
+METADATA_TABLE = 'metadata'
 
 #todo: use this or delete it
 MAX_LOADED_METRICS_KEYS = 300
@@ -49,39 +49,37 @@ class Metric(object):
     class MetricData(object):
         pass
 
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, bigquery, metric_name):
+        self.name = metric_name
         self.short_desc = None
         self.long_desc = None
-        self.units = None  #todo: create metric units, follow through to the UI
+        self.units = None
         self.query = None
         self.data = dict()
         self.metadata = dict()
+        self._bigquery = bigquery
 
-        self.LoadInfoFile()
+        self.LoadInfo()
 
-    def LoadInfoFile(self):
-        fname = os.path.join(METRICS_DIR, self.name, INFO_FILE)
+    def LoadInfo(self):
+        query = ('SELECT name, units, short_desc, long_desc, query'
+                 '  FROM %s.%s'
+                 ' WHERE name = "%s"' %
+                 (self._bigquery.dataset, METADATA_TABLE, self.name))
 
-        #todo: this won't work for (ideally) multiline data, like sample api
-        #      queries. use protobufs instead
         try:
-            with open(fname, 'r') as fd:
-                lines = fd.readlines()
-        except IOError:
-            raise LoadError('Could not load metric info for "%s" from file: %s'
-                            % (self.name, fname))
+            result = self._bigquery.Query(query)
+        except big_query_client.Error as e:
+            raise LoadError('Could not load metric info for "%s" from BigQuery:'
+                            ' %s' % (self.name, e))
 
-        file_data = dict(l.strip().split(':', 1) for l in lines)
+        # There should be only one row in the result.
+        result = dict(zip(result['fields'], result['data'][0]))
 
-        expected_keys = self.__dict__.keys()
-        #todo: raise error if found unexpected keys, or if keys are missing,
-        #      or (ideally) if the file has duplicate keys
-        matched_keys = set(expected_keys).intersection(set(file_data.keys()))
-        for key in matched_keys:
-            if key == 'name':
+        for field in result:
+            if field == 'name':
                 continue
-            self.__dict__[key] = file_data[key]
+            self.__dict__[field] = result[field]
 
     def LoadDataFile(self, date, locale):
         locale_type = self._DetermineLocaleType(locale)
@@ -158,22 +156,28 @@ class Metric(object):
         return depth_map[depth]
 
 
-def refresh(metrics_dict):
-    _update_metrics_info(metrics_dict)
-    _update_metrics_data(metrics_dict)
+def refresh(bigquery, metrics_dict):
+    _update_metrics_info(bigquery, metrics_dict)
+    _update_metrics_data(bigquery, metrics_dict)
 
 
-def _update_metrics_info(metrics_dict):
+def _update_metrics_info(bigquery, metrics_dict):
     global _last_metrics_info_refresh
 
     metrics_age = datetime.now() - _last_metrics_info_refresh
     if metrics_age.seconds < METRICS_REFRESH_RATE:
         return
 
+    query = ('SELECT name'
+             '  FROM %s.%s' % (bigquery.dataset, METADATA_TABLE))
+
     logging.info('Updating metrics data.')
-    #todo: handle exceptions
-    available_metrics = set(m for m in os.listdir(METRICS_DIR)
-                            if os.path.isdir(os.path.join(METRICS_DIR, m)))
+    try:
+        result = bigquery.Query(query)
+    except big_query_client.Error as e:
+        raise LoadError('Could not load metric names from BigQuery: %s' % e)
+
+    available_metrics = set(m[0] for m in result['data'])
     known_metrics = set(metrics_dict.keys())
     old_metrics_for_deletion = known_metrics - available_metrics
     new_metrics_to_be_loaded = available_metrics - known_metrics
@@ -187,13 +191,13 @@ def _update_metrics_info(metrics_dict):
             del metrics_dict[old_metric]
         for new_metric in new_metrics_to_be_loaded:
             try:
-                metrics_dict[new_metric] = Metric(new_metric)
+                metrics_dict[new_metric] = Metric(bigquery, new_metric)
             except LoadError as e:
                 raise RefreshError(e)
     
     _last_metrics_info_refresh = datetime.now()
 
 
-def _update_metrics_data(metrics_dict):
+def _update_metrics_data(bigquery, metrics_dict):
     # Do nothing here.  Metrics data will be updated on query.
     pass

@@ -37,12 +37,14 @@ import locales
 import metrics
 import query_engine
 
+_bigquery = None
+_locale_finder = locales.LocaleFinder()
 _locales_data = dict()
 _metrics_data = dict()
-_localefinder = locales.LocaleFinder()
 
 
-def start():
+def start(bigquery):
+    _bigquery = bigquery
     run_wsgi_app(bottle.default_app())
 
 
@@ -66,13 +68,13 @@ def api_query(params=None):
         params = request.GET
 
     try:
-        metrics.refresh(_metrics_data)
-        locales.refresh(_locales_data, _localefinder)
+        metrics.refresh(_bigquery, _metrics_data)
+        locales.refresh(_locales_data, _locale_finder)
     except (locales.RefreshError, metrics.RefreshError) as e:
         return {'error': '%s' % e}
 
     return query_engine.handle(params, _locales_data, _metrics_data,
-                               _localefinder)
+                               _locale_finder)
 
 
 @route('/details')
@@ -99,8 +101,8 @@ def metric_details(metric_name=None):
             return view
 
     try:
-        metrics.refresh(_metrics_data)
-    except metrics.RefreshError, e:
+        metrics.refresh(_bigquery, _metrics_data)
+    except metrics.RefreshError as e:
         view['error'] = '%s' % e
         return view
 
@@ -136,8 +138,8 @@ def list_metrics():
     view = {'metrics': [], 'error': None}
 
     try:
-        metrics.refresh(_metrics_data)
-    except metrics.RefreshError, e:
+        metrics.refresh(_bigquery, _metrics_data)
+    except metrics.RefreshError as e:
         view['error'] = '%s' % e
         return view
 
