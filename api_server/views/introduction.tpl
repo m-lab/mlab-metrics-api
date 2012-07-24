@@ -17,7 +17,6 @@
 %include header onpage='intro',error=error
 
 <script type="text/javascript" src="https://www.google.com/jsapi"></script>
-<script type="text/javascript" src="static/mlab_api_trend_viewer.js"></script>
 
 <div id="content">
 
