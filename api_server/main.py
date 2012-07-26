@@ -16,21 +16,21 @@
 #
 # Author: Dylan Curley
 
-"""This module ...
-
-todo: Lots more text.
-"""
+"""This module starts the M-Lab Metrics API Server on AppEngine."""
 
 import logging
+
 import server
-import sys
 
 
-def main(argv):
-    # Set up logging and start the server.
+def main():
+    """Run the world.
+
+    This function sets up logging and starts the API Server.  It never returns.
+    """
     logging.basicConfig(level=logging.INFO)
     server.start()
 
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()

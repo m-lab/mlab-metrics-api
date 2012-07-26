@@ -57,6 +57,24 @@ class Locale(object):
 
 
 class LocaleFinder(object):
+    """Catalogues locale data for efficient lookup of nearest neighbors.
+
+    Note that this class expects locale input as a dict mapping locale names
+    to Locale objects.  Each Locale object should have public members 'latitude'
+    and 'longitude'.  (See the example 'Locale' class defined in this file.)  It
+    is expected that locale data is provided as countries, regions, and cities,
+    though this is not strictly necessary.
+
+    Once the locale data has been catalogued, this class supports efficient
+    lookup of nearest locales neighboring a given set of latitude and logitude
+    coordinates.
+    """
+    def __init__(self):
+        """Constructor."""
+        self._countries = None
+        self._regions = None
+        self._cities = None
+
     class GeoTree(object):
         """
         GeoTree implements a KD-Tree to store a set of Lat-Lon geo locations so
@@ -73,6 +91,14 @@ class LocaleFinder(object):
         nearest neighbor to a given Lat-Lon coordinate.
         """
         def __init__(self, locales, locale_data):
+            """Constructor.
+
+            Args:
+                locales (list): List of locales to pull out of the passed dict
+                    of locale data.
+                locale_data (dict): Collection of locale data, keyed on locale
+                    name.
+            """
             self._data = []  # pairs of (coordinates, locale)
 
             for locale in locales:
@@ -84,12 +110,22 @@ class LocaleFinder(object):
             self._tree = KDTree(3, self._data)
 
         def FindNearestNeighbor(self, lat, lon):
+            """Finds the nearest neighbor to a given latitude & longitude.
+
+            Args:
+                lat (float): Target latitude.
+                lon (float): Target longitude.
+
+            Returns:
+                (string) The name of the locale located closest to the given
+                latitude & longitude.
+            """
             cart = self._LatLonToCartesian(lat, lon)
             _, locale, _ = self._tree.nearest_neighbor(cart)
             return locale
 
         def _LatLonToCartesian(self, lat, lon):
-            """Translate latitude & longitude to cartesian coordinates.
+            """Translates latitude & longitude to cartesian coordinates.
 
             x = r sin(lat) cos(lon)
             y = r sin(lat) sin(lon)
@@ -100,10 +136,11 @@ class LocaleFinder(object):
             convert to ints to improve the speed of lookup comparisons.
 
             Args:
-                lat: Latitude, where North is positive.
-                lon: Longitude, where East is positive.
+                lat (float): Latitude, where North is positive.
+                lon (float): Longitude, where East is positive.
+
             Returns:
-                tuple: 3-tuple representing x, y, z cartesian coordinates.
+                (tuple) 3-tuple representing x, y, z cartesian coordinates.
             """
             lat = math.radians(lat)
             lon = math.radians(lon)
@@ -116,40 +153,103 @@ class LocaleFinder(object):
             return (int(x), int(y), int(z))
 
         def _ReportCollisions(self):
+            """Logs collisions between locales.
+
+            GeoTree maps lat,lon geo-coordinates to x,y,z cartesian coordinates,
+            and stores the data by the cartesian coordinates for lookup.  For
+            efficiency, GeoTree restricts the cartesian coordinates to an (int).
+            This means that there could be two cities that collide at the same
+            coordinates.
+
+            If collisions occur, one can increase the radius term 'r' in
+            _LatLonToCartesian(), which will increase precision.
+            """
             collection = dict()
             for geo in self._data:
                 if geo[0] in collection:
-                    logging.warning('GeoTree collision between "%s" and "%s".'
-                                    % (collection[geo[0]], geo[1]))
+                    logging.warning(
+                        'GeoTree collision between "%s" and "%s".  Consider'
+                        'increasing the "r" term in _LatLonToCartesian().'
+                        % (collection[geo[0]], geo[1]))
                 else:
                     collection[geo[0]] = geo[1]
 
-    def __init__(self):
-        self._countries = None
-        self._regions = None
-        self._cities = None
-
     def FindNearestNeighbors(self, lat, lon):
+        """Finds the nearest city, region, and country to given coordinates.
+
+        Args:
+            lat (float): Target latitude.
+            lon (float): Target longitude.
+
+        Returns:
+            (dict) Locale names for the nearest city, region, and country.  For
+            example {'country': '123', 'region': '123_g', 'city': '123_g_abc'}.
+        """
         return {'country': self.FindNearestCountry(lat, lon),
                 'region': self.FindNearestRegion(lat, lon),
                 'city': self.FindNearestCity(lat, lon)}
 
     def FindNearestCountry(self, lat, lon):
+        """Finds the nearest country to given coordinates.
+
+        Args:
+            lat (float): Target latitude.
+            lon (float): Target longitude.
+
+        Returns:
+            (string) Locale name for the nearest country.  For example '123'.
+        """
         return self._countries.FindNearestNeighbor(lat, lon)
 
     def FindNearestRegion(self, lat, lon):
+        """Finds the nearest region to given coordinates.
+
+        Args:
+            lat (float): Target latitude.
+            lon (float): Target longitude.
+
+        Returns:
+            (string) Locale name for the nearest region.  For example '123_g'.
+        """
         return self._regions.FindNearestNeighbor(lat, lon)
 
     def FindNearestCity(self, lat, lon):
+        """Finds the nearest city to given coordinates.
+
+        Args:
+            lat (float): Target latitude.
+            lon (float): Target longitude.
+
+        Returns:
+            (string) Locale name for the nearest city.  For example '123_g_abc'.
+        """
         return self._cities.FindNearestNeighbor(lat, lon)
 
     def UpdateCountries(self, countries, locale_data):
+        """Updates the list of known countries.
+
+        Args:
+            locales (list): Countries to pull out of the passed locale data.
+            locale_data (dict): Collection of locale data, keyed on locale name.
+        """
         self._countries = self.GeoTree(countries, locale_data)
 
     def UpdateRegions(self, regions, locale_data):
+        """Updates the list of known regions.
+
+        Args:
+            locales (list): Regions to pull out of the passed locale data.
+            locale_data (dict): Collection of locale data, keyed on locale name.
+        """
         self._regions = self.GeoTree(regions, locale_data)
 
     def UpdateCities(self, cities, locale_data):
+        """Updates the list of known cities.
+
+        Args:
+            locales (list): Cities to pull out of the passed locale data.
+            locale_data (dict): Collection of locale data, keyed on locale name.
+        """
         self._cities = self.GeoTree(cities, locale_data)
 
 

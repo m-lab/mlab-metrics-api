@@ -20,7 +20,7 @@ The API Server manages the interface between UI templates (web pages) and the
 backend (API data).  It also handles all JSON requests for API data, thus giving
 the project name of "API Server".
 
-The API Server is designed to run on Google App Engine.
+The API Server is designed to run on Google AppEngine.
 """
 
 import json
@@ -43,6 +43,10 @@ _localefinder = locales.LocaleFinder()
 
 
 def start():
+    """Start the bottle web framework on AppEngine.
+
+    This function never returns.
+    """
     run_wsgi_app(bottle.default_app())
 
 
@@ -58,8 +62,8 @@ def api_query(params=None):
             from the bottle 'request.GET' variable.
 
     Returns:
-        If called directly, a dict with the results from the query.
-        If called through bottle at the specified @route, a valid JSON
+        (dict) If called directly, a dict with the results from the query.
+        (string) If called through bottle at the specified @route, a valid JSON
         representation of the query results.
     """
     if params is None:
@@ -85,9 +89,9 @@ def metric_details(metric_name=None):
         metric_name (string): The metric to retrieve details about.
 
     Returns:
-        If called directly, a dict with the details for the given metric.
-        If called through bottle at the specified @route, a web page (via the
-        @view decorator) with details for the given metric.
+        (dict) If called directly, a dict with the details for the given metric.
+        (string) If called through bottle at the specified @route, a web page
+        (via the @view decorator) with details for the given metric.
     """
     view = {'metric': None, 'error': None}
 
@@ -131,7 +135,8 @@ def list_metrics():
     as a quick view of the metrics.
 
     Returns:
-        A web page (via the @view decorator) listing all available metrics.
+        (string) A web page (via the @view decorator) listing all available
+        metrics.
     """
     view = {'metrics': [], 'error': None}
 
@@ -161,7 +166,7 @@ def contact():
     views/contact.tpl which contains various contact information.
 
     Returns:
-        A web page (via the @view decorator) with contact information.
+        (string) A web page (via the @view decorator) with contact information.
     """
     return {'error': None}
 
@@ -175,7 +180,7 @@ def examples():
     views/examples.tpl which contains various example queries.
 
     Returns:
-        A web page (via the @view decorator) with example queries.
+        (string) A web page (via the @view decorator) with example queries.
     """
     return {'error': None}
 
@@ -190,7 +195,8 @@ def getting_started():
     API Server.
 
     Returns:
-        A web page (via the @view decorator) with help for getting started.
+        (string) A web page (via the @view decorator) with help for getting
+        started.
     """
     return {'error': None}
 
@@ -206,6 +212,7 @@ def introduction():
     links to other information.
 
     Returns:
-        A web page (via the @view decorator) an introduction to the project.
+        (string) A web page (via the @view decorator) an introduction to the
+        project.
     """
     return {'error': None}
