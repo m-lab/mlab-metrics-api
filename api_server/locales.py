@@ -41,7 +41,27 @@ class RefreshError(Error):
 
 
 class Locale(object):
+    """Simple object representing a locale.
+
+    This object aims to present a simple representation for locales and
+    guarantees, for any locale, the following members:
+        name (string): Unique short/encoded name for this locale.
+        long_name (string): Full name, ie 'San Bruno'.
+        latitude (float): Latitude as a geographical center.
+        longitude (float): Longitude as a geographical center.
+        parent (string): Unique short/encoded name for the parent locale.
+        children (dict): Collection of children of this locale, where the keys
+            are short/encoded names and the values reference Locale objects.
+    """
     def __init__(self, name, long_name=None, latitude=None, longitude=None):
+        """Constructor.
+
+        Args:
+            name (string): Unique short/encoded name for this locale.
+            long_name (string): Full name, ie 'San Bruno'.
+            latitude (float): Latitude as a geographical center.
+            longitude (float): Longitude as a geographical center.
+        """
         self.name = name
         self.long_name = long_name
         self.latitude = latitude
@@ -50,6 +70,15 @@ class Locale(object):
         self.children = dict()
 
     def Describe(self):
+        """Describes the locale in terms that are considered useful.
+        
+        Returns:
+            (dict) Representation of the locale as a dict.  Specifically,
+            { 'name': (string) <locale ID>,
+              'long_name': (string) <locale long/common name>,
+              'latitude': (float) <latitude>,
+              'longitude': (float) <longitude> }
+        """
         return {'name': self.name,
                 'long_name': self.long_name,
                 'latitude': self.latitude,
@@ -182,8 +211,11 @@ class LocaleFinder(object):
             lon (float): Target longitude.
 
         Returns:
-            (dict) Locale names for the nearest city, region, and country.  For
-            example {'country': '123', 'region': '123_g', 'city': '123_g_abc'}.
+            (dict) Names of the nearest locales for each locale type.
+            Specifically,
+            { 'country': (string) <nearest country ID>,
+              'region': (string) <nearest region ID>,
+              'city': (string) <nearest city ID>}.
         """
         return {'country': self.FindNearestCountry(lat, lon),
                 'region': self.FindNearestRegion(lat, lon),
