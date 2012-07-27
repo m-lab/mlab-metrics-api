@@ -48,6 +48,8 @@ def start(bigquery):
 
     This function never returns.
     """
+    global _bigquery
+
     _bigquery = bigquery
     run_wsgi_app(bottle.default_app())
 

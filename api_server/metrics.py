@@ -58,10 +58,11 @@ class Metric(object):
     request and should be fast for all subsequent requests (until the cache
     expires).
     """
-    def __init__(self, name):
+    def __init__(self, bigquery, name):
         """Constructor.
 
         Args:
+            bigquery (object): BigQuery client instance.
             name (string): This metric's name.
         """
         self.name = name
@@ -76,15 +77,18 @@ class Metric(object):
         self.LoadInfo()
 
     def LoadInfo(self):
+        #todo: be smarter about this.  now that it's on bigquery figure out how
+        # to query info for all metrics once (it's not that much data) instead
+        # of querying once for each metric.
+        #todo: move the "load/update" logic out of the metric class.
         """Loads/updates metadata for this metric from BigQuery.
 
         The metric info is not returned, it's loaded into memory so that it can
         be queried later.
 
         Raises:
-            LoadError: If the requested metric info could not be read.  This may
-                happen if no info exists for this metric, but that should be a
-                rare case.
+            LoadError: If there was an error getting the metric info from
+            BigQuery.
         """
         query = ('SELECT name, units, short_desc, long_desc, query'
                  '  FROM %s.%s'
@@ -106,6 +110,7 @@ class Metric(object):
             self.__dict__[field] = result[field]
 
     def LoadDataFile(self, date, locale):
+        #todo: move the "load/update" logic out of the metric class.
         """Loads/updates data for this metric for the given 'date' and 'locale'.
 
         This method expects that metric data files are located at
@@ -198,16 +203,16 @@ class Metric(object):
                 'value' : self.data[date][locale]}
     
     def Describe(self):
-    """Describes this metric.
-
-    Returns:
-        (dict) Information about this metric in a dict.  Specifically,
-        { 'name': (string) <metric name>,
-          'short_desc': (string) <short description>,
-          'long_desc': (string) <long description>,
-          'units': (string) <metric units>,
-          'query': (string) <bigquery query that produced this metric> }
-    """
+        """Describes this metric.
+ 
+        Returns:
+            (dict) Information about this metric in a dict.  Specifically,
+            { 'name': (string) <metric name>,
+              'short_desc': (string) <short description>,
+              'long_desc': (string) <long description>,
+              'units': (string) <metric units>,
+              'query': (string) <bigquery query that produced this metric> }
+        """
         return {'name'               : self.name,
                 'short_desc'         : self.short_desc,
                 'long_desc'          : self.long_desc,
@@ -215,15 +220,15 @@ class Metric(object):
                 'query'              : self.query}
 
     def _DetermineLocaleType(self, locale_str):
-    """Internal method.  Determines the locale 'type' for a given locale name.
-
-    Returns:
-        (string) Always one of the following strings,
-        'world' If the locale name refers to the world.
-        'country' If the locale name looks like a country ID.
-        'region' If the locale name looks like a region ID.
-        'city' If the locale name looks like a city ID.
-    """
+        """Internal method.  Determines the locale 'type' for a given locale name.
+ 
+        Returns:
+            (string) Always one of the following strings,
+            'world' If the locale name refers to the world.
+            'country' If the locale name looks like a country ID.
+            'region' If the locale name looks like a region ID.
+            'city' If the locale name looks like a city ID.
+        """
         if locale_str == 'world':
             return 'world'
 
@@ -234,11 +239,13 @@ class Metric(object):
 
 
 def refresh(bigquery, metrics_dict):
+    #todo: move the "refresh" logic to its own file.
     _update_metrics_info(bigquery, metrics_dict)
     _update_metrics_data(bigquery, metrics_dict)
 
 
 def _update_metrics_info(bigquery, metrics_dict):
+    #todo: move the "refresh" logic to its own file.
     global _last_metrics_info_refresh
 
     metrics_age = datetime.now() - _last_metrics_info_refresh
@@ -254,7 +261,7 @@ def _update_metrics_info(bigquery, metrics_dict):
     except big_query_client.Error as e:
         raise LoadError('Could not load metric names from BigQuery: %s' % e)
 
-    available_metrics = set(m[0] for m in result['data'])
+    available_metrics = set(d[0] for d in result['data'])
     known_metrics = set(metrics_dict.keys())
     old_metrics_for_deletion = known_metrics - available_metrics
     new_metrics_to_be_loaded = available_metrics - known_metrics
@@ -276,5 +283,6 @@ def _update_metrics_info(bigquery, metrics_dict):
 
 
 def _update_metrics_data(bigquery, metrics_dict):
+    #todo: move the "refresh" logic to its own file.
     # Do nothing here.  Metrics data will be updated on query.
     pass

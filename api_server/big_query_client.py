@@ -61,16 +61,16 @@ class BigQueryClient(object):
 
         result = {'fields': [], 'data': []}
         for field in response[u'schema'][u'fields']:
-            result['fields'].append(f[u'name'])
-        for row in results[u'rows']:
-            result['data'].append(f[u'v'] for f in row[u'f'])
+            result['fields'].append(field[u'name'])
+        for row in response[u'rows']:
+            result['data'].append([field[u'v'] for field in row[u'f']])
 
         return result
 
     def _Connect(self):
         # Certify BigQuery access credentials.
-        credentials = AppAssertionCredentials(
+        self._credentials = AppAssertionCredentials(
             scope='https://www.googleapis.com/auth/bigquery')
-        http = credentials.authorize(httplib2.Http(memcache))
-        service = build('bigquery', 'v2', http=http)
-        self._server = service.jobs()
+        self._http = self._credentials.authorize(httplib2.Http(memcache))
+        self._service = build('bigquery', 'v2', http=self._http)
+        self._server = self._service.jobs()

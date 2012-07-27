@@ -286,6 +286,7 @@ class LocaleFinder(object):
 
 
 def refresh(locale_dict, localefinder):
+    #todo: move the "refresh" logic to its own file.
     global _last_locale_refresh
 
     locale_age = datetime.now() - _last_locale_refresh
