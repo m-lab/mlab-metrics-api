@@ -24,7 +24,7 @@ todo: Lots more text.
 import os
 
 PDE_MAP_FILE = r'mlab_all_countries/%s_map.txt'
-BIGQUERY_LOCALES_FILE = r'bigquery.locales/%s.csv'
+BIGQUERY_LOCALES_FILE = r'bigquery.locales/_locales.csv'
 BIGQUERY_SCHEMA_FILE = r'bigquery.locales/SCHEMA.txt'
 
 LOCALES = ('city', 'region', 'country')
@@ -40,6 +40,10 @@ def main():
         writer = BigQueryLocalesWriter(locale)
         writer.WriteIter(reader)
 
+    print ('Use "bq" to upload the locale data to BigQuery:\n'
+           '  bq load metrics_api_server._locales %s %s' %
+           (BIGQUERY_LOCALES_FILE, BIGQUERY_SCHEMA_FILE))
+
 
 def PDEMapReader(locale, filename=None):
     """Reads in a PDE CSV file for the given 'locale', yielding values.
@@ -50,12 +54,12 @@ def PDEMapReader(locale, filename=None):
             (PDE_MAP_FILE % locale).
 
     Yields: 
-        Dict of
-            { 'locale': <locale id>,
-              'name': <locale name>,
-              'parent': <parent locale id>,
-              'lat': <latitude>,
-              'lon': <longitude> }
+        (dict) Details about locales.  Specifically,
+        { 'locale': (string) <locale id>,
+          'name': (string) <locale name>,
+          'parent': (string) <parent locale id>,
+          'lat': (float) <latitude>,
+          'lon': (float) <longitude> }
     """
     if filename is None:
         filename = PDE_MAP_FILE % locale
@@ -104,6 +108,7 @@ class BigQueryLocalesWriter(object):
 
         with open(filename, 'w') as fd:
             fd.write('[\n'
+                     '    {"name": "type", "type": "string"},\n'
                      '    {"name": "locale", "type": "string"},\n'
                      '    {"name": "name", "type": "string"},\n'
                      '    {"name": "parent", "type": "string"},\n'
@@ -111,18 +116,19 @@ class BigQueryLocalesWriter(object):
                      '    {"name": "lon", "type": "float"}\n'
                      ']')
 
-    def __init__(self, locale, filename=None):
+    def __init__(self, locale_type, filename=None):
         """Constructs a BigQueryLocalesWriter.
 
         Args:
-            locale (string): Name of the locale type this writer will write.
-            filename (string): The locale file to be written.  Defaults to
-                (BIGQUERY_LOCALES_FILE % metric_name).
+            locale_type (string): The type of locale this writer will write.
+            filename (string): The locale file to be written.  Defaults to the
+                global variable BIGQUERY_LOCALES_FILE.
         """
+        self._type = locale_type
         if filename is None:
-            self.filename = BIGQUERY_LOCALES_FILE % locale
+            self._filename = BIGQUERY_LOCALES_FILE
         else:
-            self.filename = filename
+            self._filename = filename
 
         self._Open()
 
@@ -141,11 +147,11 @@ class BigQueryLocalesWriter(object):
             lat (float): Latitude for this locale.
             lon (float): Logitude for this locale.
         """
-        if self.fd is None:
+        if self._fd is None:
             self._Open()
 
-        self.fd.write('"%s","%s","%s",%f,%f\n' %
-                      (locale, name, parent, lat, lon))
+        self._fd.write('"%s","%s","%s","%s",%f,%f\n' %
+                      (self._type, locale, name, parent, lat, lon))
 
     def WriteIter(self, data_gen):
         """Iterates over the given data generator (or list), writing it out to
@@ -165,18 +171,18 @@ class BigQueryLocalesWriter(object):
         given data will be written out.  Close() will need to be called again in
         this case.
         """
-        self.fd.close()
+        self._fd.close()
 
     def _Open(self):
-        """PRIVATE METHOD.
+        """Private method.
         
-        Opens a file descriptor to the specified locale filename (self.filename)
-        storing it in self.fd.
+        Opens a file descriptor to the specified locale filename
+        (self._filename) storing it in self._fd.
         """
-        dirname = os.path.dirname(self.filename)
+        dirname = os.path.dirname(self._filename)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
-        self.fd = open(self.filename, 'a')
+        self._fd = open(self._filename, 'a')
 
 
 if __name__ == '__main__':

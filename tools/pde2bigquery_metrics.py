@@ -48,6 +48,11 @@ def main():
             writers[data['metric']].Write(
                 data['locale'], data['date'], data['value'])
 
+    print 'Use "bq" to upload the metric data to BigQuery:'
+    for metric in writers:
+        print ('  bq load metrics_api_server.%s %s %s' %
+               (metric, BIGQUERY_METRICS_FILE % metric, BIGQUERY_SCHEMA_FILE))
+
 
 def PDELocaleReader(locale, filename=None,
                     timestamp_fmt=INPUT_TIMESTAMP_FORMAT):
@@ -61,12 +66,11 @@ def PDELocaleReader(locale, filename=None,
             Defaults to (INPUT_TIMESTAMP_FORMAT).
 
     Yields: 
-        Dict of
-            { 'locale': <locale name>,
-              'date': <date>,
-              'metric': <metric name>,
-              'value': <metric value> }
-        where <date> is expressed as a standard python time.struct_time object.
+        (dict) Representing a particular metric.  Specifically,
+        { 'locale': (string) <locale name>,
+          'date': (time.struct_time) <date>,
+          'metric': (string) <metric name>,
+          'value': (float) <metric value> }
     """
     if filename is None:
         filename = PDE_LOCALE_FILE % locale
@@ -110,7 +114,7 @@ class BigQueryMetricsWriter(object):
 
         Args:
             filename (string): Name of the file that the schema should be output
-                to.  Defaults to (BIGQUERY_SCHEMA_FILE).
+                to.  Defaults to the global variable BIGQUERY_SCHEMA_FILE.
         """
         dirname = os.path.dirname(filename)
         if not os.path.exists(dirname):
@@ -132,7 +136,7 @@ class BigQueryMetricsWriter(object):
             filename (string): The metric file to be written.  Defaults to
                 (BIGQUERY_METRICS_FILE % metric_name).
             timestamp_fmt (string): Requested output timestamp format.  Defaults
-                to (OUTPUT_TIMESTAMP_FORMAT).
+                to the global variable OUTPUT_TIMESTAMP_FORMAT.
         """
         if filename is None:
             self.filename = BIGQUERY_METRICS_FILE % metric_name
@@ -171,7 +175,7 @@ class BigQueryMetricsWriter(object):
         self.fd.close()
 
     def _Open(self):
-        """PRIVATE METHOD.
+        """Private method.
         
         Opens a file descriptor to the specified metric filename (self.filename)
         storing it in self.fd.
