@@ -41,16 +41,30 @@ class Error(Exception):
 class LoadError(Error):
     pass
 
+class LookupError(Error):
+    pass
+
 class RefreshError(Error):
     pass
 
 
 class Metric(object):
-    class MetricData(object):
-        pass
+    """A single metric, including metadata and all associated data.
 
-    def __init__(self, bigquery, metric_name):
-        self.name = metric_name
+    Note that this class also deals with the filesystem and makes certain
+    assumptions about how data (and metadata) is laid out on disk.  Also, data
+    is loaded on demand instead of up front.  This is intended to mitigate RAM
+    usage at the expense of load time, but load time is only impacted on first
+    request and should be fast for all subsequent requests (until the cache
+    expires).
+    """
+    def __init__(self, name):
+        """Constructor.
+
+        Args:
+            name (string): This metric's name.
+        """
+        self.name = name
         self.short_desc = None
         self.long_desc = None
         self.units = None
@@ -62,6 +76,16 @@ class Metric(object):
         self.LoadInfo()
 
     def LoadInfo(self):
+        """Loads/updates metadata for this metric from BigQuery.
+
+        The metric info is not returned, it's loaded into memory so that it can
+        be queried later.
+
+        Raises:
+            LoadError: If the requested metric info could not be read.  This may
+                happen if no info exists for this metric, but that should be a
+                rare case.
+        """
         query = ('SELECT name, units, short_desc, long_desc, query'
                  '  FROM %s.%s'
                  ' WHERE name = "%s"' %
@@ -82,6 +106,25 @@ class Metric(object):
             self.__dict__[field] = result[field]
 
     def LoadDataFile(self, date, locale):
+        """Loads/updates data for this metric for the given 'date' and 'locale'.
+
+        This method expects that metric data files are located at
+            METRICS_DIR/<metric_name>/YYYY-MM/<locale_type>.csv
+        where METRICS_DIR is a global defined in metrics.py, YYYY-MM are taken
+        from the passed 'date', and <locale_type> is derived from the passed
+        'locale'.  The metric data is not returned, it's loaded into memory so
+        that it can be queried later.
+
+        Args:
+            date (tuple): Date for which data should be loaded, given as a tuple
+                consisting of ints (year, month).
+            locale (string): Locale for which data should be loaded.
+
+        Raises:
+            LoadError: If the requested metric data could not be read.  This may
+                happen if, for example, a bogus locale was requested, or a bogus
+                date.
+        """
         locale_type = self._DetermineLocaleType(locale)
         m_key = (date, locale_type)
 
@@ -120,6 +163,22 @@ class Metric(object):
             self.data[date][locale] = float(value)
 
     def Lookup(self, year, month, locale):
+        """Looks up metric data for a given year, month, and locale.
+
+        Args:
+            year (int): Year to retrieve.
+            month (int): Month to retrieve.
+            locale (int): Locale for which metric data should be given.
+
+        Raises:
+            LookupError: If the requested data doesn't exist.
+
+        Returns:
+            (dict) The requested data as a dict.  Specifically,
+            { 'metric': (string) <metric name>,
+              'units': (string) <metric units>,
+              'value': (float) <metric value for the requested specifications> }
+        """
         #todo: allow regex lookups
         date = (year, month)
 
@@ -131,14 +190,24 @@ class Metric(object):
             self.LoadDataFile(date, locale)
 
         if date not in self.data or locale not in self.data[date]:
-            return {'error': 'No data for metric=%s, year=%d, month=%d,'
-                             ' locale=%s.' % (self.name, year, month, locale)}
+            raise LookupError('No data for metric=%s, year=%d, month=%d,'
+                              ' locale=%s.' % (self.name, year, month, locale))
 
         return {'metric': self.name,
                 'units' : self.units,
                 'value' : self.data[date][locale]}
     
     def Describe(self):
+    """Describes this metric.
+
+    Returns:
+        (dict) Information about this metric in a dict.  Specifically,
+        { 'name': (string) <metric name>,
+          'short_desc': (string) <short description>,
+          'long_desc': (string) <long description>,
+          'units': (string) <metric units>,
+          'query': (string) <bigquery query that produced this metric> }
+    """
         return {'name'               : self.name,
                 'short_desc'         : self.short_desc,
                 'long_desc'          : self.long_desc,
@@ -146,13 +215,21 @@ class Metric(object):
                 'query'              : self.query}
 
     def _DetermineLocaleType(self, locale_str):
+    """Internal method.  Determines the locale 'type' for a given locale name.
+
+    Returns:
+        (string) Always one of the following strings,
+        'world' If the locale name refers to the world.
+        'country' If the locale name looks like a country ID.
+        'region' If the locale name looks like a region ID.
+        'city' If the locale name looks like a city ID.
+    """
         if locale_str == 'world':
             return 'world'
 
         depth_map = {1: 'country', 2: 'region', 3: 'city'}
         depth = len(locale_str.split('_'))
 
-        print 'locale: %s, locale_type: %s' % (locale_str, depth_map[depth])
         return depth_map[depth]
 
 

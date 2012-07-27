@@ -16,14 +16,11 @@
 #
 # Author: Dylan Curley
 
-"""This module ...
-
-todo: Lots more text.
-"""
+"""This module starts the M-Lab Metrics API Server on AppEngine."""
 
 import logging
+
 import server
-import sys
 
 import big_query_client
 
@@ -31,8 +28,12 @@ BIGQUERY_PROJECT_ID = 'measurement-lab'
 BIGQUERY_DATASET = 'metrics_api_server'
 
 
-def main(argv):
-    # Set up logging, connect to BigQuery, and start the web server.
+def main():
+    """Run the world.
+
+    This function sets up logging, connects to BigQuery, and starts the API
+    Server.  It never returns.
+    """
     logging.getLogger().setLevel(logging.DEBUG)
     bigquery = big_query_client.BigQueryClient(
         BIGQUERY_PROJECT_ID, BIGQUERY_DATASET)
@@ -40,4 +41,4 @@ def main(argv):
 
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()

@@ -117,7 +117,12 @@ def _handle_metric_query(params, metrics_data):
                          % locale_str}
 
     # Lookup & return the data.
-    return metrics_data[metric_name].Lookup(int(year), int(month), locale)
+    try:
+        rply = metrics_data[metric_name].Lookup(int(year), int(month), locale)
+    except (metrics.LoadError, metrics.LookupError) as e:
+        return {'error': '%s' % e}
+
+    return rply
 
 
 def _handle_nearest_query(params, localefinder):
