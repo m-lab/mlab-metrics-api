@@ -75,7 +75,7 @@ def api_query(params=None):
 
     try:
         metrics.refresh(_bigquery, _metrics_data)
-        locales.refresh(_locales_data, _locale_finder)
+        locales.refresh(_bigquery, _locales_data, _locale_finder)
     except (locales.RefreshError, metrics.RefreshError) as e:
         return {'error': '%s' % e}
 

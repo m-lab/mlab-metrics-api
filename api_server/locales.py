@@ -23,9 +23,11 @@ from datetime import datetime
 import logging
 import math
 import os
-from deps.kdtree import KDTree
 
-LOCALE_DIR = '../maps'
+from deps.kdtree import KDTree
+import big_query_client
+
+LOCALES_TABLE = '_locales'
 
 # Refresh metrics at most every X seconds.
 LOCALE_REFRESH_RATE = 3600
@@ -53,7 +55,8 @@ class Locale(object):
         children (dict): Collection of children of this locale, where the keys
             are short/encoded names and the values reference Locale objects.
     """
-    def __init__(self, name, long_name=None, latitude=None, longitude=None):
+    def __init__(self, name, long_name=None, latitude=None, longitude=None,
+                 parent=None):
         """Constructor.
 
         Args:
@@ -61,13 +64,14 @@ class Locale(object):
             long_name (string): Full name, ie 'San Bruno'.
             latitude (float): Latitude as a geographical center.
             longitude (float): Longitude as a geographical center.
+            parent (string): Name of parent locale.
         """
         self.name = name
         self.long_name = long_name
         self.latitude = latitude
         self.longitude = longitude
-        self.parent = None
-        self.children = dict()
+        self.parent = parent
+        self.children = []
 
     def Describe(self):
         """Describes the locale in terms that are considered useful.
@@ -285,7 +289,7 @@ class LocaleFinder(object):
         self._cities = self.GeoTree(cities, locale_data)
 
 
-def refresh(locale_dict, localefinder):
+def refresh(bigquery, locale_dict, localefinder):
     #todo: move the "refresh" logic to its own file.
     global _last_locale_refresh
 
@@ -299,41 +303,38 @@ def refresh(locale_dict, localefinder):
     if 'world' not in locale_dict:
         locale_dict['world'] = Locale('world')
 
+    # Must build Locales in largest-to-smallest order so that parent references
+    # can be resolved.
     for locale_type in ('country', 'region', 'city'):
-        fname = os.path.join(LOCALE_DIR, '%s_map.txt' % locale_type)
+        #todo: figure out why this query fails without the 'WHERE'.  timeout?
+        query = ('SELECT locale, name, parent, lat, lon'
+                 '  FROM %s.%s'
+                 ' WHERE type = "%s"' %
+                 (bigquery.dataset, LOCALES_TABLE, locale_type))
+
         try:
-            with open(fname) as fd:
-                lines = fd.readlines()
-        except IOError as e:
-            raise RefreshError('Could not load locale info from file: %s (%s)' %
-                               (fname, e))
-        
-        for line in lines:
-            file_data = line.strip().split(',')
+            result = bigquery.Query(query)
+        except big_query_client.Error as e:
+            raise RefreshError('Could not load locale info from BigQuery: %s'
+                               % e)
 
-            if locale_type == 'country':
-                name, long_name, latitude, longitude = file_data
-                parent_name = 'world'
+        # Parse and build Locales into the locale_dict.
+        for row in result['data']:
+            locale, name, parent, lat, lon = row
+
+            locale_dict[locale] = Locale(
+                locale, name, float(lat), float(lon), parent)
+            locales_by_type[locale_type].append(locale)
+
+            # Add child references if the parent exists.
+            if parent in locale_dict:
+                locale_dict[parent].children.append(locale)
             else:
-                name, long_name, parent_name, latitude, longitude = file_data
-
-            try:
-                lat = float(latitude)
-                lon = float(longitude)
-            except ValueError:
-                logging.error('Failed to parse %s locale map data: %s'
-                              % (locale_type, line))
-                continue
-
-            locale_dict[name] = Locale(name, long_name, lat, lon)
-            if parent_name in locale_dict:
-                locale_dict[name].parent = locale_dict[parent_name]
-                locale_dict[parent_name].children[name] = locale_dict[name]
-
-            locales_by_type[locale_type].append(name)
+                locale_dict[locale].parent = None
 
     _last_locale_refresh = datetime.now()
 
+    # Build the LocaleFinder for quick nearest-neighbor lookup.
     localefinder.UpdateCountries(locales_by_type['country'], locale_dict)
     localefinder.UpdateRegions(locales_by_type['region'], locale_dict)
     localefinder.UpdateCities(locales_by_type['city'], locale_dict)

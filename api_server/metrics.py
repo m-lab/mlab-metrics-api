@@ -24,7 +24,7 @@ import logging
 
 import big_query_client
 
-METADATA_TABLE = 'metadata'
+METADATA_TABLE = '_metadata'
 
 #todo: use this or delete it
 MAX_LOADED_METRICS_KEYS = 300
@@ -78,8 +78,8 @@ class Metric(object):
 
     def LoadInfo(self):
         #todo: be smarter about this.  now that it's on bigquery figure out how
-        # to query info for all metrics once (it's not that much data) instead
-        # of querying once for each metric.
+        # to query once for all metrics (it's not that much data) instead of
+        # querying once for each metric.
         #todo: move the "load/update" logic out of the metric class.
         """Loads/updates metadata for this metric from BigQuery.
 
@@ -141,30 +141,22 @@ class Metric(object):
             return
         self.metadata[m_key]['last_load_time'] = datetime.now()
 
-        fname = os.path.join(METRICS_DIR, self.name, '%d-%02d' % date,
-                             '%s.csv' % locale_type)
-        try:
-            print 'opening: %s' % fname
-            with open(fname, 'r') as fd:
-                lines = fd.readlines()
-        except IOError:
-            raise LoadError('Could not load metric data for "%s" from file: %s'
-                            % (self.name, fname))
+        query = ('SELECT locale, value'
+                 '  FROM %s.%s'
+                 ' WHERE date = "%s"' %
+                 (self._bigquery.dataset, self.name, '%d-%02d' % date))
 
-        file_data = [l.strip().split(',', 1) for l in lines]
+        try:
+            result = self._bigquery.Query(query)
+        except big_query_client.Error as e:
+            raise LoadError('Could not load metric data for "%s" from BigQuery:'
+                            ' %s' % (self.name, e))
 
         if date not in self.data:
             self.data[date] = dict()
 
-        if locale_type == 'world':
-            # world data has no 'locale', so the csv has only 1 value
-            self.data[date][locale] = float(file_data[0][0])
-            print 'got world data for date=%s, locale=%s : %s' % (
-                date, locale, self.data[date][locale])
-            return
-
-        for locale, value in file_data:
-            print "%s (%s) < %s, %s" % (self.name, date, locale, value)
+        for row in result['data']:
+            locale, value = row
             self.data[date][locale] = float(value)
 
     def Lookup(self, year, month, locale):
@@ -182,7 +174,7 @@ class Metric(object):
             (dict) The requested data as a dict.  Specifically,
             { 'metric': (string) <metric name>,
               'units': (string) <metric units>,
-              'value': (float) <metric value for the requested specifications> }
+              'value': (float) <metric value> }
         """
         #todo: allow regex lookups
         date = (year, month)

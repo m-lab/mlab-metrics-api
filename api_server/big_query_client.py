@@ -41,20 +41,14 @@ class BigQueryClient(object):
     def __init__(self, project_id, dataset):
         self.project_id = project_id
         self.dataset = dataset
-        self._server = None
 
         self._Connect()
 
     def Query(self, query):
-        logging.info('Query/info')
-        logging.debug('Query/debug')
-        if self._server is None:
-            raise ConnectionError('Lost connection to the BigQuery server?')
-
-        response = self._server.query(
+        response = self._service.jobs().query(
             projectId=self.project_id, body={'query': query}).execute()
         logging.debug('Query: %s' % query)
-        logging.debug('Response: %s' % response)
+        logging.debug(('Response: %s' % response)[:1500])
 
         if not response[u'jobComplete']:
             raise QueryError('Query failed: %s' % query)
@@ -73,4 +67,3 @@ class BigQueryClient(object):
             scope='https://www.googleapis.com/auth/bigquery')
         self._http = self._credentials.authorize(httplib2.Http(memcache))
         self._service = build('bigquery', 'v2', http=self._http)
-        self._server = self._service.jobs()

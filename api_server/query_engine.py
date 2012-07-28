@@ -19,6 +19,7 @@
 todo: Lots more text.
 """
 
+import logging
 import metrics
 
 VALID_REQUEST_TYPES = {
@@ -77,11 +78,11 @@ def _handle_locale_query(params, locales_data):
         if locale != 'world':
             reply['parent'] = {'name': 'world'}
     else:
-        reply['parent'] = locales_data[locale].parent.Describe()
-    if len(locales_data[locale].children):
-        reply['children'] = [c.Describe() for c in
-                             locales_data[locale].children.itervalues()]
+        reply['parent'] = locales_data[locales_data[locale].parent].Describe()
 
+    if len(locales_data[locale].children):
+        reply['children'] = [locales_data[c].Describe() for c in
+                             locales_data[locale].children]
     return reply
 
 
