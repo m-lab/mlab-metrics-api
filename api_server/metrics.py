@@ -30,7 +30,7 @@ METADATA_TABLE = '_metadata'
 MAX_LOADED_METRICS_KEYS = 300
 
 # Refresh metrics at most every X seconds.
-METRICS_REFRESH_RATE = 3600
+METRICS_REFRESH_RATE = 3600 * 24 * 2
 
 _last_metrics_info_refresh = datetime.fromtimestamp(0)
 

@@ -29,8 +29,8 @@ import big_query_client
 
 LOCALES_TABLE = '_locales'
 
-# Refresh metrics at most every X seconds.
-LOCALE_REFRESH_RATE = 3600
+# Refresh locales at most every X seconds.
+LOCALE_REFRESH_RATE = 3600 * 24 * 2
 
 _last_locale_refresh = datetime.fromtimestamp(0)
 
