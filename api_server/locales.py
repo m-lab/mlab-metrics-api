@@ -20,6 +20,7 @@ todo: Lots more text.
 """
 
 from datetime import datetime
+from datetime import timedelta
 import logging
 import math
 import os
@@ -29,8 +30,8 @@ import big_query_client
 
 LOCALES_TABLE = '_locales'
 
-# Refresh locales at most every X seconds.
-LOCALE_REFRESH_RATE = 3600 * 24 * 2
+# Timeout when cached locales should be considered old.
+LOCALE_REFRESH_RATE = timedelta(days=2)
 
 _last_locale_refresh = datetime.fromtimestamp(0)
 
@@ -294,7 +295,7 @@ def refresh(bigquery, locale_dict, localefinder):
     global _last_locale_refresh
 
     locale_age = datetime.now() - _last_locale_refresh
-    if locale_age.seconds < LOCALE_REFRESH_RATE:
+    if locale_age < LOCALE_REFRESH_RATE:
         return
 
     locales_by_type = {'country': [], 'region': [], 'city': []}

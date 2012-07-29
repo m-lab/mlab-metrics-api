@@ -20,6 +20,7 @@ todo: Lots more text.
 """
 
 from datetime import datetime
+from datetime import timedelta
 import logging
 
 import big_query_client
@@ -29,8 +30,8 @@ METADATA_TABLE = '_metadata'
 #todo: use this or delete it
 MAX_LOADED_METRICS_KEYS = 300
 
-# Refresh metrics at most every X seconds.
-METRICS_REFRESH_RATE = 3600 * 24 * 2
+# Timeout when cached metrics should be considered old.
+METRICS_REFRESH_RATE = timedelta(days=2)
 
 _last_metrics_info_refresh = datetime.fromtimestamp(0)
 
@@ -137,7 +138,7 @@ class Metric(object):
             self.metadata[m_key] = {'last_load_time': datetime.fromtimestamp(0)}
 
         metrics_age = datetime.now() - self.metadata[m_key]['last_load_time']
-        if metrics_age.seconds < METRICS_REFRESH_RATE:
+        if metrics_age < METRICS_REFRESH_RATE:
             return
         self.metadata[m_key]['last_load_time'] = datetime.now()
 
@@ -241,7 +242,7 @@ def _update_metrics_info(bigquery, metrics_dict):
     global _last_metrics_info_refresh
 
     metrics_age = datetime.now() - _last_metrics_info_refresh
-    if metrics_age.seconds < METRICS_REFRESH_RATE:
+    if metrics_age < METRICS_REFRESH_RATE:
         return
 
     query = ('SELECT name'
