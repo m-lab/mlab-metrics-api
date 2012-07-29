@@ -19,6 +19,8 @@
 todo: Lots more text.
 """
 
+from datetime import datetime
+from datetime import timedelta
 import httplib2
 import logging
 
@@ -26,11 +28,16 @@ from apiclient.discovery import build
 from google.appengine.api import memcache
 from oauth2client.appengine import AppAssertionCredentials
 
+MAX_RESULTS_PER_PACKET = 1000
+
 
 class Error(Exception):
     pass
 
 class ConnectionError(Error):
+    pass
+
+class TimeoutError(Error):
     pass
 
 class QueryError(Error):
@@ -41,25 +48,77 @@ class BigQueryClient(object):
     def __init__(self, project_id, dataset):
         self.project_id = project_id
         self.dataset = dataset
+        self._start_time = None
+        self._total_timeout = None
+        self._max_results_per_packet = MAX_RESULTS_PER_PACKET
+
+        # BigQuery sometimes returns the previous query response.
+        self._previous_job_id = ''
 
         self._Connect()
 
-    def Query(self, query):
-        response = self._service.jobs().query(
-            projectId=self.project_id, body={'query': query}).execute()
-        logging.debug('Query: %s' % query)
-        logging.debug(('Response: %s' % response)[:1500])
+    def Query(self, query, timeout_msec=1000 * 60):
+        self._total_timeout = timedelta(milliseconds=timeout_msec)
+        self._start_time = datetime.now()
 
-        if not response[u'jobComplete']:
-            raise QueryError('Query failed: %s' % query)
+        # Issue the query.
+        logging.debug('Query: %s' % query)
+        jobs = self._service.jobs()
+        job_id = self._previous_job_id
+
+        while job_id == self._previous_job_id:
+            response = jobs.query(
+                body={'query': query,
+                      'timeoutMs': self.VerifyTimeMSecLeft(),
+                      'maxResults': self._max_results_per_packet},
+                projectId=self.project_id).execute()
+            job_id = response['jobReference']['jobId']
+            logging.debug(('Response[%s]: %s' % (job_id, response))[:1500])
+
+        # Wait for the query to complete.
+        while not response['jobComplete']:
+            response = self._GetQueryResponse(jobs, job_id, 0)
+            logging.debug(('Response[%s]: %s' % (job_id, response))[:1500])
+
+        # Parse the response data into a more convenient dict, with members
+        # 'fields' for row names and 'data' for row data.
+        if 'schema' not in response or response['totalRows'] == 0:
+            raise QueryError('Query produced no results: %s' % query)
 
         result = {'fields': [], 'data': []}
-        for field in response[u'schema'][u'fields']:
-            result['fields'].append(field[u'name'])
-        for row in response[u'rows']:
-            result['data'].append([field[u'v'] for field in row[u'f']])
+        for field in response['schema']['fields']:
+            result['fields'].append(field['name'])
 
+        current_row = 0
+        while 'rows' in response and current_row < response['totalRows']:
+            for row in response['rows']:
+                result['data'].append([field['v'] for field in row['f']])
+
+            current_row += len(response['rows'])
+            if current_row < response['totalRows']:
+                response = self._GetQueryResponse(jobs, job_id, current_row)
+                logging.debug(('Response[%s]: %s' % (job_id, response))[:1500])
+
+        self._previous_job_id = job_id
         return result
+
+    def _GetQueryResponse(self, jobs, job_id, start_index):
+        return jobs.getQueryResults(timeoutMs=self.VerifyTimeMSecLeft(),
+                                    projectId=self.project_id,
+                                    jobId=job_id,
+                                    maxResults=self._max_results_per_packet,
+                                    startIndex=start_index).execute()
+
+    def VerifyTimeMSecLeft(self):
+        if self._start_time is None or self._total_timeout is None:
+            raise TimeoutError('Start time and/or total timeout not set.')
+
+        time_taken = datetime.now() - self._start_time
+        if time_taken >= self._total_timeout:
+            raise TimeoutError('Client timeout reached at %s msec.' %
+                               time_taken.total_seconds() * 1000)
+
+        return int((self._total_timeout - time_taken).total_seconds() * 1000)
 
     def _Connect(self):
         # Certify BigQuery access credentials.
