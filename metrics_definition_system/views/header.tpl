@@ -23,9 +23,9 @@
 <body>
 <div class="container">
     <div class="jumbotron subhead" id="titlebar">
-        <h1>M-Lab Metrics API Server</h1>
+        <h1>M-Lab Metrics Definition System</h1>
         <p class="lead">
-            Opening Measurement Lab data to external research and analysis.
+            A simple server for managing Measurement Lab metrics.
         </p>
     </div>
 
@@ -40,31 +40,17 @@
                 >
                     <a href="/intro">Introduction</a></li>
                 <li
-                    %if onpage == "getting_started":
-                    class="active"
-                    %end
-                >
-                    <a href="/getting_started">Getting Started</a></li>
-                <li
-                    %if onpage == "examples":
-                    class="active"
-                    %end
-                >
-                    <a href="/examples">Examples</a></li>
-                <li class="divider"></li>
-                <li
                     %if onpage == "metrics":
                     class="active"
                     %end
                 >
                     <a href="/metrics">Metrics List</a></li>
-                <li class="divider"></li>
                 <li
-                    %if onpage == "contact":
+                    %if onpage == "help":
                     class="active"
                     %end
                 >
-                    <a href="/contact">Contact Us</a></li>
+                    <a href="/help">Help</a></li>
             </ul>
         </div>
 
