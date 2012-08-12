@@ -1,53 +1,62 @@
-%# Copyright 2012 Google Inc. All Rights Reserved.
-%#
-%# Licensed under the Apache License, Version 2.0 (the "License");
-%# you may not use this file except in compliance with the License.
-%# You may obtain a copy of the License at
-%#
-%#     http://www.apache.org/licenses/LICENSE-2.0
-%#
-%# Unless required by applicable law or agreed to in writing, software
-%# distributed under the License is distributed on an "AS IS" BASIS,
-%# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-%# See the License for the specific language governing permissions and
-%# limitations under the License.
-%#
-%# Author: Dylan Curley
+{% comment %}
+Copyright 2012 Google Inc. All Rights Reserved.
 
-%include header onpage='metrics',error=error
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-<h2 class="sectionhead">Metric Details</h2>
+    http://www.apache.org/licenses/LICENSE-2.0
 
-%#todo: button to edit a metric
-%#todo: button to delete a metric
-%#todo: button to create a new metric
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 
-<a class="btn btn-large btn-primary" href="/new_metric">Create a New Metric</a>
+Author: Dylan Curley
+{% endcomment %}
 
-%for metric in metrics
-<h3>{{metric['name']}}</h3>
+{% with "metrics" as onpage %}
+{% include "header.tpl" %}
+{% endwith %}
+
+{% comment %}
+todo: move edit|delete buttons to the right
+todo: add space between the edit|delete buttons
+{% endcomment %}
+
+<div class="new-metric-button">
+    <a class="btn btn-large btn-primary" href="/new_metric">Create a New Metric</a>
+</div>
+
+{% for metric in metrics %}
+<h3 class="metric-details">
+    {{ metric.name }}
+    <a class="btn btn-mini btn-primary" href="/edit_metric/{{ metric.name }}">Edit Metric</a>
+    <a class="btn btn-mini btn-danger" href="/delete_metric/{{ metric.name }}">Delete Metric</a>
+</h3>
 <table class="table table-bordered">
 	<tr><th class="lbl">Units</th>
 		<td class="info">
-			{{metric['units']}}
+			{{ metric.units }}
 			</td>
 		</tr>
 	<tr><th class="lbl">Short Description</th>
 		<td class="info">
-			{{metric['short_desc']}}
+			{{ metric.short_desc }}
 			</td>
 		</tr>
 	<tr><th class="lbl">Long Description</th>
 		<td class="info">
-			{{metric['long_desc']}}
+			{{ metric.long_desc }}
 			</td>
 		</tr>
 	<tr><th class="lbl">Query</th>
 		<td class="info">
-			{{metric['query']}}
+			{{ metric.query }}
 			</td>
 		</tr>
 </table>
-%end
+{% endfor %}
 
-%include footer
+{% include "footer.tpl" %}

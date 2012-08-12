@@ -1,22 +1,24 @@
-%# Copyright 2012 Google Inc. All Rights Reserved.
-%#
-%# Licensed under the Apache License, Version 2.0 (the "License");
-%# you may not use this file except in compliance with the License.
-%# You may obtain a copy of the License at
-%#
-%#     http://www.apache.org/licenses/LICENSE-2.0
-%#
-%# Unless required by applicable law or agreed to in writing, software
-%# distributed under the License is distributed on an "AS IS" BASIS,
-%# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-%# See the License for the specific language governing permissions and
-%# limitations under the License.
-%#
-%# Author: Dylan Curley
+{% comment %}
+Copyright 2012 Google Inc. All Rights Reserved.
 
-%include header onpage='intro',error=error
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-<script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Author: Dylan Curley
+{% endcomment %}
+
+{% with "intro" as onpage %}
+{% include "header.tpl" %}
+{% endwith %}
 
 <div id="content">
 
@@ -41,13 +43,13 @@ The M-Lab Metrics Definition System ...
 
 <h2 class="sectionhead">Where Do I Start?</h2>
 <p>
-Jump right into the <a href="/getting_started">Getting Started Guide</a> for an in-depth tour of the API Server.  Take a look at the current metrics on the <a href="/metrics">Metrics List Page</a>.  Or get in touch via the mailing list on the <a href="/contact">Contact Us Page</a>.
+Jump right into the <a href="/getting_started">Getting Started Guide</a> for an in-depth tour of the API Server.  Take a look at the current metrics on the <a href="/metrics">Metrics List Page</a>.  Or get in touch via the mailing list on the <a href="/help">Help Page</a>.
 </p>
 
 <p>
-For everything else, head on over to the <a href="/contact">Contact Us Page</a>.
+For everything else, head on over to the <a href="/help">Help Page</a>.
 </p>
 
 </div>
 
-%include footer
+{% include "footer.tpl" %}

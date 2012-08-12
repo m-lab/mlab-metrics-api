@@ -23,6 +23,7 @@ from datetime import datetime
 from datetime import timedelta
 import httplib2
 import logging
+import os
 
 from apiclient.discovery import build
 from google.appengine.api import memcache
@@ -44,7 +45,7 @@ class QueryError(Error):
     pass
 
 
-class BigQueryClient(object):
+class _BigQueryClient(object):
     def __init__(self, project_id, dataset):
         self.project_id = project_id
         self.dataset = dataset
@@ -120,9 +121,23 @@ class BigQueryClient(object):
 
         return int((self._total_timeout - time_taken).total_seconds() * 1000)
 
+
+class AppAssertionCredentialsBQClient(_BigQueryClient):
     def _Connect(self):
         # Certify BigQuery access credentials.
         self._credentials = AppAssertionCredentials(
             scope='https://www.googleapis.com/auth/bigquery')
         self._http = self._credentials.authorize(httplib2.Http(memcache))
         self._service = build('bigquery', 'v2', http=self._http)
+
+
+class ClientSecretsBQClient(_BigQueryClient):
+    def _Connect(self):
+        self._http = None
+
+    def SetClientHTTP(self, http):
+        self._http = http
+
+    def Query(self, query, timeout_msec=1000 * 60):
+        self._service = build('bigquery', 'v2', http=self._http)
+        return super(ClientSecretsBQClient, self).Query(query, timeout_msec)

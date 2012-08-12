@@ -54,3 +54,11 @@ dd {
 .standout {
     background-color: yellow;
 }
+
+.new-metric-button {
+    float: right;
+}
+
+.metric-details {
+    clear: right;
+}

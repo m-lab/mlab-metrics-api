@@ -21,19 +21,35 @@ The Metrics Definition System ...
 todo: comments
 """
 
-import json
+import logging
 import os
 import re
 
-from deps import bottle
-from deps.bottle import request
-from deps.bottle import route
-from deps.bottle import view
+from google.appengine.ext import webapp
+from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp.util import run_wsgi_app
+from oauth2client.appengine import OAuth2DecoratorFromClientSecrets
 
 import metrics
 
 _bigquery = None
+_metrics_data = dict()
+_client_secrets = OAuth2DecoratorFromClientSecrets(
+    os.path.join(os.path.dirname(__file__), 'client_secrets.json'),
+    scope='https://www.googleapis.com/auth/bigquery')
+
+
+class TemplateFile(object):
+    def __init__(self, filename):
+        self._filename = filename
+
+    def __call__(self, fn):
+        def wrapped_fn(*args):
+            response, template_values = fn(*args)
+            path = os.path.join(os.path.dirname(__file__), self._filename)
+            response.out.write(template.render(path, template_values))
+        return wrapped_fn
+
 
 def start(bigquery):
     """Start the bottle web framework on AppEngine.
@@ -43,96 +59,17 @@ def start(bigquery):
     global _bigquery
 
     _bigquery = bigquery
-    run_wsgi_app(bottle.default_app())
+    application = webapp.WSGIApplication(
+        [('/',        IntroPageHandler),
+         ('/intro',   IntroPageHandler),
+         ('/metrics', ListMetricsPageHandler),
+         ('/edit',    EditMetricsPageHandler),
+         ('/help',    HelpPageHandler)],
+        debug=True)
+    run_wsgi_app(application)
 
 
-@route('/edit')
-@route('/edit/<metric_name>')
-@view('edit_metric')
-def edit_metric(metric_name=None):
-    """Handle a page request for the metric editor.
-    
-    Args:
-        metric_name (string): The metric to edit.
-
-    Returns:
-        (string) A web page (via the @view decorator) listing details for the
-        requested metric.
-    """
-    view = {'metric': [], 'error': None}
-
-    if metric_name is None:
-        try:
-            metric_name = request.GET['metric_name']
-        except KeyError:
-            #todo: redirect to the list page
-            return view
-
-    try:
-        metrics.refresh(_bigquery, _metrics_data)
-    except metrics.RefreshError as e:
-        view['error'] = '%s' % e
-        return view
-
-    if metric_name not in _metrics_data:                                                                              
-        view['error'] = ('No such metric: <span id="metric_name">%s</span>'                                           
-                         % metric_name)                                                                               
-        return view                                                                                                   
-
-    view['metric'] = _metrics_data[metric_name].Describe()         
-    return view
-
-
-@route('/list')
-@route('/metrics')
-@view('list_metrics')
-def list_metrics():
-    """Handle a request for the "List Metrics" page.
-
-    The "List Metrics" page contains the name and short description for each
-    metric, and a link where more info can be retrieved.  It's intended only
-    as a quick view of the metrics.
-
-    Returns:
-        (string) A web page (via the @view decorator) listing all available
-        metrics.
-    """
-    view = {'metrics': [], 'error': None}
-
-    try:
-        metrics.refresh(_bigquery, _metrics_data)
-    except metrics.RefreshError as e:
-        view['error'] = '%s' % e
-        return view
-
-    if not len(_metrics_data):
-        view['error'] = 'The metric database is empty.'
-        return view
-
-    # Pump the view with details for all metrics.
-    for metric_name in _metrics_data:
-        view['metrics'].append(_metrics_data[metric_name].Describe())
-    return view
-
-
-@route('/help')
-@view('help')
-def help():
-    """Handle a request for the "Help" page.
-
-    This function really doesn't do much, but it returns the data contained at
-    views/help.tpl which contains various information on how to use the system.
-
-    Returns:
-        (string) A web page (via the @view decorator) with help information.
-    """
-    return {'error': None}
-
-
-@route('/')
-@route('/intro')
-@view('introduction')
-def introduction():
+class IntroPageHandler(webapp.RequestHandler):
     """Handle a request for the "Introduction" page.
 
     This function really doesn't do much, but it returns the data contained at
@@ -143,4 +80,91 @@ def introduction():
         (string) A web page (via the @view decorator) an introduction to the
         project.
     """
-    return {'error': None}
+    @TemplateFile('views/introduction.tpl')
+    def get(self):
+        return (self.response, {'error': None})
+
+
+class ListMetricsPageHandler(webapp.RequestHandler):
+    """Handle a request for the "List Metrics" page.
+
+    The "List Metrics" page contains the name and short description for each
+    metric, and a link where more info can be retrieved.  It's intended only
+    as a quick view of the metrics.
+
+    Returns:
+        (string) A web page (via the @view decorator) listing all available
+        metrics.
+    """
+    @_client_secrets.oauth_required
+    @TemplateFile('views/list_metrics.tpl')
+    def get(self):
+        view = {'metrics': [], 'error': None}
+
+        try:
+            _bigquery.SetClientHTTP(_client_secrets.http())
+            metrics.refresh(_bigquery, _metrics_data)
+            _bigquery.SetClientHTTP(None)
+        except metrics.RefreshError as e:
+            view['error'] = '%s' % e
+            return (self.response, view)
+
+        if not len(_metrics_data):
+            view['error'] = 'The metric database is empty.'
+            return (self.response, view)
+
+        # Pump the view with details for all metrics.
+        for metric_name in _metrics_data:
+            view['metrics'].append(_metrics_data[metric_name].Describe())
+        logging.debug('ListMetrics view: %s' % view)
+        return (self.response, view)
+
+
+class EditMetricsPageHandler(webapp.RequestHandler):
+    """Handle a page request for the metric editor.
+
+    Args:
+        metric_name (string): The metric to edit.
+
+    Returns:
+        (string) A web page (via the @view decorator) listing details for the
+        requested metric.
+    """
+    @TemplateFile('views/edit_metrics.tpl')
+    def get(self):
+        view = {'metric': [], 'error': None}
+
+        if metric_name is None:
+            try:
+                metric_name = request.GET['metric_name']
+            except KeyError:
+                #todo: redirect to the list page
+                return (self.response, view)
+
+        try:
+            metrics.refresh(_bigquery, _metrics_data)
+        except metrics.RefreshError as e:
+            view['error'] = '%s' % e
+            return (self.response, view)
+
+        if metric_name not in _metrics_data:
+            view['error'] = ('No such metric: <span id="metric_name">%s</span>'
+                             % metric_name)
+            return (self.response, view)
+
+        view['metric'] = _metrics_data[metric_name].Describe()
+        return (self.response, view)
+
+
+class HelpPageHandler(webapp.RequestHandler):
+    """Handle a request for the "Help" page.
+
+    This function really doesn't do much, but it returns the data contained at
+    views/help.tpl which contains various information on how to use the system.
+
+    Returns:
+        (string) A web page (via the @view decorator) with help information.
+    """
+    @TemplateFile('views/help.tpl')
+    def get(self):
+        return (self.response, {'error': None})

@@ -35,7 +35,7 @@ def main():
     Server.  It never returns.
     """
     logging.getLogger().setLevel(logging.DEBUG)
-    bigquery = big_query_client.BigQueryClient(
+    bigquery = big_query_client.AppAssertionCredentialsBQClient(
         BIGQUERY_PROJECT_ID, BIGQUERY_DATASET)
     server.start(bigquery)
 

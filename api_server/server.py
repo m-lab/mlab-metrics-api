@@ -88,7 +88,7 @@ def api_query(params=None):
 @view('details')
 def metric_details(metric_name=None):
     """Handle a page request for metric details.
-    
+
     Args:
         metric_name (string): The metric to retrieve details about.
 

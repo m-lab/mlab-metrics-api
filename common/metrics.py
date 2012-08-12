@@ -251,6 +251,7 @@ def _update_metrics_info(bigquery, metrics_dict):
     logging.info('Updating metrics data.')
     try:
         result = bigquery.Query(query)
+        logging.debug('Response: %s' % result)
     except big_query_client.Error as e:
         raise LoadError('Could not load metric names from BigQuery: %s' % e)
 
