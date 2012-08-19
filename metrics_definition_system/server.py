@@ -39,7 +39,15 @@ _client_secrets = OAuth2DecoratorFromClientSecrets(
     scope='https://www.googleapis.com/auth/bigquery')
 
 
-class TemplateFile(object):
+class Error(Exception):
+    pass
+
+
+class RefreshError(Error):
+    pass
+
+
+class _TemplateFile(object):
     def __init__(self, filename):
         self._filename = filename
 
@@ -49,6 +57,18 @@ class TemplateFile(object):
             path = os.path.join(os.path.dirname(__file__), self._filename)
             response.out.write(template.render(path, template_values))
         return wrapped_fn
+
+
+def _RefreshMetricsData(http):
+    try:
+        _bigquery.SetClientHTTP(http)
+        metrics.refresh(_bigquery, _metrics_data)
+        _bigquery.SetClientHTTP(None)
+    except metrics.RefreshError as e:
+        raise RefreshError(e)
+
+    if not len(_metrics_data):
+        raise RefreshError('The metric database is empty.')
 
 
 def start(bigquery):
@@ -80,7 +100,7 @@ class IntroPageHandler(webapp.RequestHandler):
         (string) A web page (via the @view decorator) an introduction to the
         project.
     """
-    @TemplateFile('views/introduction.tpl')
+    @_TemplateFile('views/introduction.tpl')
     def get(self):
         return (self.response, {'error': None})
 
@@ -97,20 +117,14 @@ class ListMetricsPageHandler(webapp.RequestHandler):
         metrics.
     """
     @_client_secrets.oauth_required
-    @TemplateFile('views/list_metrics.tpl')
+    @_TemplateFile('views/list_metrics.tpl')
     def get(self):
         view = {'metrics': [], 'error': None}
 
         try:
-            _bigquery.SetClientHTTP(_client_secrets.http())
-            metrics.refresh(_bigquery, _metrics_data)
-            _bigquery.SetClientHTTP(None)
-        except metrics.RefreshError as e:
+            _RefreshMetricsData(_client_secrets.http())
+        except RefreshError as e:
             view['error'] = '%s' % e
-            return (self.response, view)
-
-        if not len(_metrics_data):
-            view['error'] = 'The metric database is empty.'
             return (self.response, view)
 
         # Pump the view with details for all metrics.
@@ -123,29 +137,24 @@ class ListMetricsPageHandler(webapp.RequestHandler):
 class EditMetricsPageHandler(webapp.RequestHandler):
     """Handle a page request for the metric editor.
 
-    Args:
-        metric_name (string): The metric to edit.
-
     Returns:
         (string) A web page (via the @view decorator) listing details for the
         requested metric.
     """
-    @TemplateFile('views/edit_metrics.tpl')
+    @_client_secrets.oauth_required
+    @_TemplateFile('views/edit_metric.tpl')
     def get(self):
         view = {'metric': [], 'error': None}
 
-        if metric_name is None:
-            try:
-                metric_name = request.GET['metric_name']
-            except KeyError:
-                #todo: redirect to the list page
-                return (self.response, view)
-
         try:
-            metrics.refresh(_bigquery, _metrics_data)
-        except metrics.RefreshError as e:
+            _RefreshMetricsData(_client_secrets.http())
+        except RefreshError as e:
             view['error'] = '%s' % e
             return (self.response, view)
+
+        metric_name = self.request.get('metric', default_value=None)
+        if metric_name is None:
+            self.redirect('/metrics')
 
         if metric_name not in _metrics_data:
             view['error'] = ('No such metric: <span id="metric_name">%s</span>'
@@ -165,6 +174,6 @@ class HelpPageHandler(webapp.RequestHandler):
     Returns:
         (string) A web page (via the @view decorator) with help information.
     """
-    @TemplateFile('views/help.tpl')
+    @_TemplateFile('views/help.tpl')
     def get(self):
         return (self.response, {'error': None})

@@ -20,6 +20,53 @@ Author: Dylan Curley
 {% include "header.tpl" %}
 {% endwith %}
 
-todo: content ...
+<div id="content">
+<h2 class="sectionhead">Edit Metric: {{ metric.name }}</h2>
+
+<form class="form-horizontal" method="post" action="/edit">
+    <fieldset>
+        <div class="control-group">
+            <label class="control-label">Metric name</label>
+            <div class="controls">
+                <span class="input-xlarge uneditable-input" id="name">{{ metric.name }}</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label class="control-label" for="units">Units</label>
+            <div class="controls">
+                <input class="input-xlarge focused" id="units" type="text" value="{{ metric.units }}" />
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label class="control-label" for="short_desc">Short description</label>
+            <div class="controls">
+                <input class="input-xlarge" id="short_desc" type="text" value="{{ metric.short_desc }}" />
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label class="control-label" for="long_desc">Long description</label>
+            <div class="controls">
+                <textarea class="input-xlarge" id="long_desc" type="text" rows="4">{{ metric.long_desc }}</textarea>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label class="control-label" for="query">Query</label>
+            <div class="controls">
+                <textarea class="input-xlarge" id="query" type="text" rows="8">{{ metric.query }}</textarea>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-primary" type="submit">Save changes</button>
+            <a class="btn" href="/metrics">Cancel</a>
+        </div>
+    </fieldset>
+</form>
+
+</div>
 
 {% include "footer.tpl" %}

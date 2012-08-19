@@ -16,41 +16,27 @@ limitations under the License.
 Author: Dylan Curley
 */
 
-body {
-    font-size: 15px;
-    line-height: 1.4;
+.new-metric-button {
+    float: right;
+    margin-bottom: 18px;
 }
 
-#titlebar {
-    padding-top: 20px;
-	border-bottom: 2px blue solid;
-    margin-bottom: 20px;
+.metric-details {
+    clear: right;
 }
 
-#titlebar h1 {
-    font-size: 44px;
+.metric-name {
+    float: left;
 }
 
-#nav {
-    padding: 8px 0;
+.edit-delete-metric-buttons {
+    float: right;
 }
 
-.sectionhead {
-    margin-top: 20px;
+.form-horizontal {
+    margin-top: 18px;
 }
 
-.sectionhead:first-child {
-    margin-top: 0;
-}
-
-dl {
-    margin-left: 20px;
-}
-
-dd {
-    margin-bottom: 12px;
-}
-
-.standout {
-    background-color: yellow;
+.input-xlarge {
+    width: 400px;
 }

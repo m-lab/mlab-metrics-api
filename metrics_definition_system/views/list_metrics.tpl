@@ -20,21 +20,20 @@ Author: Dylan Curley
 {% include "header.tpl" %}
 {% endwith %}
 
-{% comment %}
-todo: move edit|delete buttons to the right
-todo: add space between the edit|delete buttons
-{% endcomment %}
+<div id="content">
 
 <div class="new-metric-button">
     <a class="btn btn-large btn-primary" href="/new_metric">Create a New Metric</a>
 </div>
 
 {% for metric in metrics %}
-<h3 class="metric-details">
-    {{ metric.name }}
-    <a class="btn btn-mini btn-primary" href="/edit_metric/{{ metric.name }}">Edit Metric</a>
-    <a class="btn btn-mini btn-danger" href="/delete_metric/{{ metric.name }}">Delete Metric</a>
-</h3>
+<div class="metric-details">
+    <h3 class="metric-name">{{ metric.name }}</h3>
+    <div class="edit-delete-metric-buttons">
+        <a class="btn btn-mini btn-primary" href="/edit?metric={{ metric.name }}">Edit Metric</a>
+        <a class="btn btn-mini btn-danger" href="/delete?metric={{ metric.name }}">Delete Metric</a>
+    </div>
+</div>
 <table class="table table-bordered">
 	<tr><th class="lbl">Units</th>
 		<td class="info">
@@ -58,5 +57,7 @@ todo: add space between the edit|delete buttons
 		</tr>
 </table>
 {% endfor %}
+
+</div>
 
 {% include "footer.tpl" %}

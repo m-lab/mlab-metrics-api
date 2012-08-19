@@ -22,6 +22,7 @@ Author: Dylan Curley
     <script type="text/javascript" src="https://www.google.com/jsapi"></script>
     <link rel="stylesheet" type="text/css" href="/static/bootstrap.css">
     <link rel="stylesheet" type="text/css" href="/static/common.css">
+    <link rel="stylesheet" type="text/css" href="/static/metdef.css">
 </head>
 
 <body>
