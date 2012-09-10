@@ -84,7 +84,7 @@ def start(bigquery):
          ('/intro',   IntroPageHandler),
          ('/metrics', ListMetricsPageHandler),
          ('/edit',    EditMetricPageHandler),
-         ('/help',    HelpPageHandler)],
+         ('/contact', ContactUsPageHandler)],
         debug=True)
     run_wsgi_app(application)
 
@@ -205,15 +205,15 @@ class EditMetricPageHandler(webapp.RequestHandler):
         self.redirect('/metrics?note=Metric %s saved successfully.' % name)
 
 
-class HelpPageHandler(webapp.RequestHandler):
-    """Handle a request for the "Help" page.
+class ContactUsPageHandler(webapp.RequestHandler):
+    """Handle a request for the "Contact Us" page.
 
     This function really doesn't do much, but it returns the data contained at
-    views/help.tpl which contains various information on how to use the system.
+    views/contact.tpl which contains various contact information.
 
     Returns:
-        (string) A web page (via the @view decorator) with help information.
+        (string) A web page (via the @view decorator) with contact information.
     """
-    @_TemplateFile('views/help.tpl')
+    @_TemplateFile('views/contact.tpl')
     def get(self):
         return (self.response, {'error': None})

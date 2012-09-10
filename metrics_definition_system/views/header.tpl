@@ -51,11 +51,11 @@ Author: Dylan Curley
                 >
                     <a href="/metrics">Metrics List</a></li>
                 <li
-                    {% if onpage == "help" %}
+                    {% if onpage == "contact" %}
                     class="active"
                     {% endif %}
                 >
-                    <a href="/help">Help</a></li>
+                    <a href="/contact">Contact Us</a></li>
             </ul>
         </div>
 
