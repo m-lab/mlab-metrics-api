@@ -63,7 +63,7 @@ def _RefreshMetricsData(http):
     try:
         _bigquery.SetClientHTTP(http)
         metrics.refresh(_bigquery, _metrics_data)
-        _bigquery.SetClientHTTP(None)
+        _bigquery.SetClientHTTP(None)  #todo: finally?
     except metrics.RefreshError as e:
         raise RefreshError(e)
 
@@ -83,7 +83,7 @@ def start(bigquery):
         [('/',        IntroPageHandler),
          ('/intro',   IntroPageHandler),
          ('/metrics', ListMetricsPageHandler),
-         ('/edit',    EditMetricsPageHandler),
+         ('/edit',    EditMetricPageHandler),
          ('/help',    HelpPageHandler)],
         debug=True)
     run_wsgi_app(application)
@@ -134,16 +134,18 @@ class ListMetricsPageHandler(webapp.RequestHandler):
         return (self.response, view)
 
 
-class EditMetricsPageHandler(webapp.RequestHandler):
+class EditMetricPageHandler(webapp.RequestHandler):
     """Handle a page request for the metric editor.
-
-    Returns:
-        (string) A web page (via the @view decorator) listing details for the
-        requested metric.
     """
     @_client_secrets.oauth_required
     @_TemplateFile('views/edit_metric.tpl')
     def get(self):
+        """Handles "get" requests for the Edit Metric page.
+
+        Returns:
+            (string) A web page (via the @view decorator) listing details for
+            the requested metric, in a form that allows details to be edited.
+        """
         view = {'metric': [], 'error': None}
 
         try:
@@ -163,6 +165,44 @@ class EditMetricsPageHandler(webapp.RequestHandler):
 
         view['metric'] = _metrics_data[metric_name].Describe()
         return (self.response, view)
+
+    @_client_secrets.oauth_required
+    def post(self):
+        """Handles "post" requests for the Edit Metric page.
+        
+        Save updated metric details, then redirect to the "List Metrics" page.
+        """
+        name = self.request.get('name', default_value=None)
+        units = self.request.get('units', default_value=None)
+        short_desc = self.request.get('short_desc', default_value=None)
+        long_desc = self.request.get('long_desc', default_value=None)
+        query = self.request.get('query', default_value=None)
+
+        logging.debug('POST: name="%s (%s)", units="%s", short_desc="%s", '
+                      'long_desc="%s", query="%s"' %
+                      (name, type(name), units, short_desc, long_desc, query))
+
+        if None in (name, units, short_desc, long_desc, query):
+            self.redirect('/metrics?error=Edit request was incomplete. Try '
+                          'again or send us an email.')
+            return
+
+        if name not in _metrics_data:
+            self.redirect('/metrics?error=Attempted to edit a non-existant '
+                          'metric. Did you mean to add a new metric instead?')
+            return
+
+        try:
+            _bigquery.SetClientHTTP(_client_secrets.http())
+            metrics.edit_metric(_bigquery, _metrics_data, name, units=units,
+                                short_desc=short_desc, long_desc=long_desc,
+                                query=query)
+            _bigquery.SetClientHTTP(None)  #todo: finally?
+        except (metrics.RefreshError, metrics.UpdateError) as e:
+            self.redirect('/metrics?error=%s' % e)
+            return
+
+        self.redirect('/metrics?note=Metric %s saved successfully.' % name)
 
 
 class HelpPageHandler(webapp.RequestHandler):

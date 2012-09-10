@@ -23,40 +23,40 @@ Author: Dylan Curley
 <div id="content">
 <h2 class="sectionhead">Edit Metric: {{ metric.name }}</h2>
 
-<form class="form-horizontal" method="post" action="/edit">
+<form class="form-horizontal" id="edit-metric-form" method="post" action="/edit" novalidate="novalidate">
     <fieldset>
         <div class="control-group">
-            <label class="control-label">Metric name</label>
+            <label class="control-label" for="name">Metric name</label>
             <div class="controls">
-                <span class="input-xlarge uneditable-input" id="name">{{ metric.name }}</span>
+                <input class="input-xlarge uneditable-input" id="name" name="name" type="text" value="{{ metric.name }}" />
             </div>
         </div>
 
         <div class="control-group">
             <label class="control-label" for="units">Units</label>
             <div class="controls">
-                <input class="input-xlarge focused" id="units" type="text" value="{{ metric.units }}" />
+                <input class="input-xlarge focused" id="units" name="units" type="text" value="{{ metric.units }}" />
             </div>
         </div>
 
         <div class="control-group">
             <label class="control-label" for="short_desc">Short description</label>
             <div class="controls">
-                <input class="input-xlarge" id="short_desc" type="text" value="{{ metric.short_desc }}" />
+                <input class="input-xlarge" id="short_desc" name="short_desc" type="text" value="{{ metric.short_desc }}" />
             </div>
         </div>
 
         <div class="control-group">
             <label class="control-label" for="long_desc">Long description</label>
             <div class="controls">
-                <textarea class="input-xlarge" id="long_desc" type="text" rows="4">{{ metric.long_desc }}</textarea>
+                <textarea class="input-xlarge" id="long_desc" name="long_desc" type="text" rows="4">{{ metric.long_desc }}</textarea>
             </div>
         </div>
 
         <div class="control-group">
             <label class="control-label" for="query">Query</label>
             <div class="controls">
-                <textarea class="input-xlarge" id="query" type="text" rows="8">{{ metric.query }}</textarea>
+                <textarea class="input-xlarge" id="query" name="query" type="text" rows="8">{{ metric.query }}</textarea>
             </div>
         </div>
 

@@ -103,6 +103,91 @@ class _BigQueryClient(object):
         self._previous_job_id = job_id
         return result
 
+    def UpdateTable(self, table_name, fields, field_data):
+        """Update a given table with the passed new 'field_data'.
+
+        BigQuery does not currently support updates, so the recommended way to
+        update table data is to create a new table with the desired data, then
+        request a copy of the new table to overwrite the old table.
+        https://developers.google.com/bigquery/docs/developers_guide#deletingrows
+        """
+        # Create a new (updated) table at "<table_name>-<timestamp>".
+        tmp_table = '%s-%s' % (table_name, datetime.now().strftime('%s'))
+        fmt_fields = ',\n'.join('{"name": "%s", "type": "%s"}'
+                                % (f, t) for (f, t) in fields)
+        table_data = ('--XXXXX\n'
+                      'Content-Type: application/json; charset=UTF-8\n'
+                      '\n'
+                      '{\n'
+                      '  "configuration": {\n'
+                      '    "load": {\n'
+                      '      "schema": {\n'
+                      '        "fields": [\n'
+                      '          %s\n'
+                      '        ]\n'
+                      '      },\n'
+                      '      "destinationTable": {\n'
+                      '        "projectId": "%s",\n'
+                      '        "datasetId": "%s",\n'
+                      '        "tableId": "%s"\n'
+                      '      }\n'
+                      '    }\n'
+                      '  }\n'
+                      '}\n'
+                      '--XXXXX\n'
+                      'Content-Type: application/octet-stream\n'
+                      '\n' % (fmt_fields, self.project_id, self.dataset, tmp_table))
+        for data in field_data:
+            table_row = ','.join('"%s"' % data[f] for (f, _) in fields)
+            table_data += '%s\n' % table_row
+        table_data += '--XXXXX--\n'
+
+        logging.debug('Creating temporary table: %s' % tmp_table)
+        upload_url = ('https://www.googleapis.com/upload/bigquery/v2/projects/'
+                      '%s/jobs' % self.project_id)
+        headers = {'Content-Type': 'multipart/related; boundary=XXXXX'}
+        reply, _ = self._http.request(upload_url, method="POST", body=table_data,
+                                      headers=headers)
+        logging.debug('Creation response: %s' % reply)
+
+        # Overwrite the old/existing table with the temporary table.
+        update_targets = {
+            "projectId": self.project_id,
+            "configuration": {
+                "copy": {
+                    "sourceTable": {
+                        "projectId": self.project_id,
+                        "datasetId": self.dataset,
+                        "tableId": tmp_table,
+                    },
+                    "destinationTable": {
+                        "projectId": self.project_id,
+                        "datasetId": self.dataset,
+                        "tableId": table_name,
+                    },
+                    "createDisposition": "CREATE_IF_NEEDED",
+                    "writeDisposition": "WRITE_TRUNCATE"
+                }
+            }
+        }
+
+        logging.debug('Overwriting old/existing table with the temporary table.')
+        job = self._service.jobs()
+        reply = job.insert(projectId=self.project_id, body=update_targets).execute()
+
+        while True:
+            status = job.get(projectId=bigquery.project_id,
+                             jobId=reply['jobReference']['jobId']).execute()
+            if status['status']['state'] == 'DONE':
+                break
+            logging.debug('Waiting for the table move to complete...')
+            time.sleep(2)
+
+        if 'errors' in status['status']:
+            logging.debug('Error ovewriting: ' % pprint.pprint(status))
+            return
+        logging.debug('Finished with status:' % pprint.pprint(status))
+
     def _GetQueryResponse(self, jobs, job_id, start_index):
         return jobs.getQueryResults(timeoutMs=self.VerifyTimeMSecLeft(),
                                     projectId=self.project_id,

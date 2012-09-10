@@ -48,6 +48,9 @@ class LookupError(Error):
 class RefreshError(Error):
     pass
 
+class UpdateError(Error):
+    pass
+
 
 class Metric(object):
     """A single metric, including metadata and all associated data.
@@ -212,6 +215,24 @@ class Metric(object):
                 'units'              : self.units,
                 'query'              : self.query}
 
+    def Update(self, units=None, short_desc=None, long_desc=None, query=None):
+        """Updates the metric with passed data.
+
+        Args:
+            units (optional, string): Metric units, e.g. 'Mbps'.
+            short_desc (optional, string): Short text description.
+            long_desc (optional, string): Long text description.
+            query (optional, string): BigQuery query that produces this metric.
+        """
+        if units is not None:
+            self.units = units
+        if short_desc is not None:
+            self.short_desc = short_desc
+        if long_desc is not None:
+            self.long_desc = long_desc
+        if query is not None:
+            self.query = query
+
     def _DetermineLocaleType(self, locale_str):
         """Internal method.  Determines the locale 'type' for a given locale name.
  
@@ -231,18 +252,41 @@ class Metric(object):
         return depth_map[depth]
 
 
+def edit_metric(bigquery, metrics_dict, metric_name, units=None,
+                short_desc=None, long_desc=None, query=None):
+    """Update values for the given metric.
+
+    Raises:
+        UpdateError: If the update was unsuccessful.
+    """
+    _update_metrics_info(bigquery, metrics_dict, force=True)
+
+    if metric_name not in metrics_dict:
+        raise UpdateError('Unknown metric: %s', metric_name)
+
+    metrics_dict[metric_name].Update(units=units, short_desc=short_desc,
+                                     long_desc=long_desc, query=query)
+    fields = ((f, 'string') for f in metrics_dict[metric_name].Describe())
+    field_data = []
+    for metric in metrics_dict:
+        metric_data = metrics_dict[metric].Describe()
+        field_data.append(dict((f, metric_data[f]) for (f, _) in fields))
+
+    bigquery.UpdateTable(METADATA_TABLE, fields, field_data)
+
+
 def refresh(bigquery, metrics_dict):
     #todo: move the "refresh" logic to its own file.
     _update_metrics_info(bigquery, metrics_dict)
     _update_metrics_data(bigquery, metrics_dict)
 
 
-def _update_metrics_info(bigquery, metrics_dict):
+def _update_metrics_info(bigquery, metrics_dict, force=False):
     #todo: move the "refresh" logic to its own file.
     global _last_metrics_info_refresh
 
     metrics_age = datetime.now() - _last_metrics_info_refresh
-    if metrics_age < METRICS_REFRESH_RATE:
+    if metrics_age < METRICS_REFRESH_RATE and not force:
         return
 
     query = ('SELECT name'
