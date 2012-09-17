@@ -23,6 +23,7 @@ from datetime import datetime
 from datetime import timedelta
 import httplib2
 import logging
+from pprint import pprint
 import os
 
 from apiclient.discovery import build
@@ -111,8 +112,8 @@ class _BigQueryClient(object):
         request a copy of the new table to overwrite the old table.
         https://developers.google.com/bigquery/docs/developers_guide#deletingrows
         """
-        # Create a new (updated) table at "<table_name>-<timestamp>".
-        tmp_table = '%s-%s' % (table_name, datetime.now().strftime('%s'))
+        # Create a new (updated) table at "<table_name>_<timestamp>".
+        tmp_table = '%s_%s' % (table_name, datetime.now().strftime('%s'))
         fmt_fields = ',\n'.join('{"name": "%s", "type": "%s"}'
                                 % (f, t) for (f, t) in fields)
         table_data = ('--XXXXX\n'
@@ -176,7 +177,7 @@ class _BigQueryClient(object):
         reply = job.insert(projectId=self.project_id, body=update_targets).execute()
 
         while True:
-            status = job.get(projectId=bigquery.project_id,
+            status = job.get(projectId=self.project_id,
                              jobId=reply['jobReference']['jobId']).execute()
             if status['status']['state'] == 'DONE':
                 break
@@ -184,9 +185,9 @@ class _BigQueryClient(object):
             time.sleep(2)
 
         if 'errors' in status['status']:
-            logging.debug('Error ovewriting: ' % pprint.pprint(status))
+            logging.debug('Error updating table: %s' % pprint(status))
             return
-        logging.debug('Finished with status:' % pprint.pprint(status))
+        logging.debug('Finished updating table with status: %s' % pprint(status))
 
     def _GetQueryResponse(self, jobs, job_id, start_index):
         return jobs.getQueryResults(timeoutMs=self.VerifyTimeMSecLeft(),

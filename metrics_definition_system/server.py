@@ -170,7 +170,7 @@ class EditMetricPageHandler(webapp.RequestHandler):
     def post(self):
         """Handles "post" requests for the Edit Metric page.
         
-        Save updated metric details, then redirect to the "List Metrics" page.
+        Saves updated metric details, then redirects to the "List Metrics" page.
         """
         name = self.request.get('name', default_value=None)
         units = self.request.get('units', default_value=None)
