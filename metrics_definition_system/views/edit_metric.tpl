@@ -21,14 +21,18 @@ Author: Dylan Curley
 {% endwith %}
 
 <div id="content">
+{% if metric %}
 <h2 class="sectionhead">Edit Metric: {{ metric.name }}</h2>
+{% else %}
+<h2 class="sectionhead">New Metric</h2>
+{% endif %}
 
 <form class="form-horizontal" id="edit-metric-form" method="post" action="/edit" novalidate="novalidate">
     <fieldset>
         <div class="control-group">
             <label class="control-label" for="name">Metric name</label>
             <div class="controls">
-                <input class="input-xlarge uneditable-input" id="name" name="name" type="text" value="{{ metric.name }}" />
+                <input class="input-xlarge {% if metric %}uneditable-input{% endif %}" id="name" name="name" type="text" value="{{ metric.name }}" />
             </div>
         </div>
 

@@ -84,6 +84,8 @@ def start(bigquery):
          ('/intro',   IntroPageHandler),
          ('/metrics', ListMetricsPageHandler),
          ('/edit',    EditMetricPageHandler),
+         ('/delete',  DeleteMetricPageHandler),
+         ('/new',     NewMetricPageHandler),
          ('/contact', ContactUsPageHandler)],
         debug=True)
     run_wsgi_app(application)
@@ -187,22 +189,72 @@ class EditMetricPageHandler(webapp.RequestHandler):
                           'again or send us an email.')
             return
 
-        if name not in _metrics_data:
-            self.redirect('/metrics?error=Attempted to edit a non-existant '
-                          'metric. Did you mean to add a new metric instead?')
-            return
-
         try:
             _bigquery.SetClientHTTP(_client_secrets.http())
             metrics.edit_metric(_bigquery, _metrics_data, name, units=units,
                                 short_desc=short_desc, long_desc=long_desc,
                                 query=query)
             _bigquery.SetClientHTTP(None)  #todo: finally?
-        except (metrics.RefreshError, metrics.UpdateError) as e:
+        except metrics.RefreshError as e:
             self.redirect('/metrics?error=%s' % e)
             return
 
         self.redirect('/metrics?note=Metric %s saved successfully.' % name)
+
+
+class NewMetricPageHandler(webapp.RequestHandler):
+    """Handle a page request for creating a metric.
+    """
+    @_client_secrets.oauth_required
+    @_TemplateFile('views/edit_metric.tpl')
+    def get(self):
+        """Handles "get" requests for the New Metric page.
+
+        Returns:
+            (string) A web page (via the @view decorator) with input boxes
+            for details for the metric to be created.
+        """
+        view = {'metric': None, 'error': None}
+        return (self.response, view)
+
+
+class DeleteMetricPageHandler(webapp.RequestHandler):
+    """Handle a page request for metric deletion.
+    """
+    @_client_secrets.oauth_required
+    @_TemplateFile('views/delete_metric.tpl')
+    def get(self):
+        """Handles "get" requests for the Delete Metric page.
+
+        Returns:
+            (string) A web page (via the @view decorator) requesting
+            verification that the user wishes to delete the specified metric.
+        """
+        view = {'error': None}
+
+        view['metric'] = self.request.get('metric', default_value=None)
+        if view['metric'] is None:
+            self.redirect('/metrics')
+
+        return (self.response, view)
+
+    @_client_secrets.oauth_required
+    def post(self):
+        """Handles "post" requests for the Delete Metric page.
+        
+        Deletes the specified metric, then redirects to the "List Metrics" page.
+        """
+        name = self.request.get('name', default_value=None)
+
+        try:
+            _bigquery.SetClientHTTP(_client_secrets.http())
+            metrics.edit_metric(_bigquery, _metrics_data, name, delete=True)
+            _bigquery.SetClientHTTP(None)  #todo: finally?
+        except metrics.RefreshError as e:
+            self.redirect('/metrics?error=%s' % e)
+            return
+
+        self.redirect('/metrics?note=Metric %s deleted successfully.' % name)
 
 
 class ContactUsPageHandler(webapp.RequestHandler):

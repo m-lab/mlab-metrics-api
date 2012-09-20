@@ -23,7 +23,7 @@ Author: Dylan Curley
 <div id="content">
 
 <div class="new-metric-button">
-    <a class="btn btn-large btn-primary" href="/new_metric">Create a New Metric</a>
+    <a class="btn btn-large btn-primary" href="/new">Create a New Metric</a>
 </div>
 
 {% for metric in metrics %}
