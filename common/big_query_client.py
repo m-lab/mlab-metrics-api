@@ -22,9 +22,11 @@ todo: Lots more text.
 from datetime import datetime
 from datetime import timedelta
 import httplib2
+import json
 import logging
-from pprint import pprint
 import os
+import pprint
+import time
 
 from apiclient.discovery import build
 from google.appengine.api import memcache
@@ -116,7 +118,7 @@ class _BigQueryClient(object):
         tmp_table = '%s_%s' % (table_name, datetime.now().strftime('%s'))
         fmt_fields = ',\n'.join('{"name": "%s", "type": "%s"}'
                                 % (f, t) for (f, t) in fields)
-        table_data = ('--XXXXX\n'
+        table_data = ('--xxx\n'
                       'Content-Type: application/json; charset=UTF-8\n'
                       '\n'
                       '{\n'
@@ -135,21 +137,34 @@ class _BigQueryClient(object):
                       '    }\n'
                       '  }\n'
                       '}\n'
-                      '--XXXXX\n'
+                      '--xxx\n'
                       'Content-Type: application/octet-stream\n'
                       '\n' % (fmt_fields, self.project_id, self.dataset, tmp_table))
         for data in field_data:
             table_row = ','.join('"%s"' % data[f] for (f, _) in fields)
             table_data += '%s\n' % table_row
-        table_data += '--XXXXX--\n'
+        table_data += '--xxx--\n'
 
-        logging.debug('Creating temporary table: %s' % tmp_table)
+        logging.debug('Creating temporary table: %s\n%s' % (tmp_table, table_data))
         upload_url = ('https://www.googleapis.com/upload/bigquery/v2/projects/'
                       '%s/jobs' % self.project_id)
-        headers = {'Content-Type': 'multipart/related; boundary=XXXXX'}
-        reply, _ = self._http.request(upload_url, method="POST", body=table_data,
-                                      headers=headers)
-        logging.debug('Creation response: %s' % reply)
+        headers = {'Content-Type': 'multipart/related; boundary=xxx'}
+        reply, status = self._http.request(upload_url, method='POST', body=table_data,
+                                           headers=headers)
+
+        status = json.loads(status)
+        while status['status']['state'] in ('PENDING', 'RUNNING'):
+            time.sleep(2)
+            reply, status = self._http.request(status['selfLink'], method='GET')
+            status = json.loads(status)
+
+        logging.debug('Creation request head: %s' % reply)
+        logging.debug('Creation request content: %s' % status)
+
+        if 'errors' in status['status']:
+            logging.error('Error creating temporary table: %s' %
+                          status['status']['errorResult']['message'])
+            return
 
         # Overwrite the old/existing table with the temporary table.
         update_targets = {
@@ -175,19 +190,20 @@ class _BigQueryClient(object):
         logging.debug('Overwriting old/existing table with the temporary table.')
         job = self._service.jobs()
         reply = job.insert(projectId=self.project_id, body=update_targets).execute()
+        status = job.get(projectId=self.project_id,
+                         jobId=reply['jobReference']['jobId']).execute()
 
-        while True:
+        while status['status']['state'] in ('PENDING', 'RUNNING'):
+            time.sleep(2)
             status = job.get(projectId=self.project_id,
                              jobId=reply['jobReference']['jobId']).execute()
-            if status['status']['state'] == 'DONE':
-                break
-            logging.debug('Waiting for the table move to complete...')
-            time.sleep(2)
 
         if 'errors' in status['status']:
-            logging.debug('Error updating table: %s' % pprint(status))
+            logging.error('Error updating table: %s' %
+                          status['status']['errorResult']['message'])
             return
-        logging.debug('Finished updating table with status: %s' % pprint(status))
+        logging.debug('Finished updating table with status: %s' %
+                      pprint.saferepr(status))
 
     def _GetQueryResponse(self, jobs, job_id, start_index):
         return jobs.getQueryResults(timeoutMs=self.VerifyTimeMSecLeft(),

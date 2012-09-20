@@ -48,9 +48,6 @@ class LookupError(Error):
 class RefreshError(Error):
     pass
 
-class UpdateError(Error):
-    pass
-
 
 class Metric(object):
     """A single metric, including metadata and all associated data.
@@ -62,7 +59,7 @@ class Metric(object):
     request and should be fast for all subsequent requests (until the cache
     expires).
     """
-    def __init__(self, bigquery, name):
+    def __init__(self, bigquery, name, load_info=True):
         """Constructor.
 
         Args:
@@ -78,7 +75,8 @@ class Metric(object):
         self.metadata = dict()
         self._bigquery = bigquery
 
-        self.LoadInfo()
+        if load_info:
+            self.LoadInfo()
 
     def LoadInfo(self):
         #todo: be smarter about this.  now that it's on bigquery figure out how
@@ -253,20 +251,22 @@ class Metric(object):
 
 
 def edit_metric(bigquery, metrics_dict, metric_name, units=None,
-                short_desc=None, long_desc=None, query=None):
+                short_desc=None, long_desc=None, query=None, delete=False):
     """Update values for the given metric.
-
-    Raises:
-        UpdateError: If the update was unsuccessful.
     """
     _update_metrics_info(bigquery, metrics_dict, force=True)
 
-    if metric_name not in metrics_dict:
-        raise UpdateError('Unknown metric: %s', metric_name)
+    if delete:
+        del metrics_dict[metric_name]
+    else:
+        if metric_name not in metrics_dict:
+            metrics_dict[metric_name] = Metric(bigquery, metric_name,
+                                               load_info=False)
+        metrics_dict[metric_name].Update(units=units, short_desc=short_desc,
+                                         long_desc=long_desc, query=query)
 
-    metrics_dict[metric_name].Update(units=units, short_desc=short_desc,
-                                     long_desc=long_desc, query=query)
-    fields = ((f, 'string') for f in metrics_dict[metric_name].Describe())
+    fields = tuple((f, 'string') for f in
+                   metrics_dict[metrics_dict.keys()[0]].Describe())
     field_data = []
     for metric in metrics_dict:
         metric_data = metrics_dict[metric].Describe()
