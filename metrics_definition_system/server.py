@@ -47,16 +47,15 @@ class RefreshError(Error):
     pass
 
 
-class _TemplateFile(object):
-    def __init__(self, filename):
-        self._filename = filename
-
-    def __call__(self, fn):
-        def wrapped_fn(*args):
-            response, template_values = fn(*args)
-            path = os.path.join(os.path.dirname(__file__), self._filename)
-            response.out.write(template.render(path, template_values))
-        return wrapped_fn
+def _TemplateFile(filename):
+    def wrapper(fn):
+        def wrapped(self, *args):
+            template_values = fn(self, *args)
+            path = os.path.join(os.path.dirname(__file__), filename)
+            self.response.out.write(template.render(path, template_values))
+            return
+        return wrapped
+    return wrapper
 
 
 def _RefreshMetricsData(http):
@@ -104,7 +103,7 @@ class IntroPageHandler(webapp.RequestHandler):
     """
     @_TemplateFile('views/introduction.tpl')
     def get(self):
-        return (self.response, {'error': None})
+        return {'error': None}
 
 
 class ListMetricsPageHandler(webapp.RequestHandler):
@@ -127,13 +126,13 @@ class ListMetricsPageHandler(webapp.RequestHandler):
             _RefreshMetricsData(_client_secrets.http())
         except RefreshError as e:
             view['error'] = '%s' % e
-            return (self.response, view)
+            return view
 
         # Pump the view with details for all metrics.
         for metric_name in _metrics_data:
             view['metrics'].append(_metrics_data[metric_name].Describe())
         logging.debug('ListMetrics view: %s' % view)
-        return (self.response, view)
+        return view
 
 
 class EditMetricPageHandler(webapp.RequestHandler):
@@ -154,7 +153,7 @@ class EditMetricPageHandler(webapp.RequestHandler):
             _RefreshMetricsData(_client_secrets.http())
         except RefreshError as e:
             view['error'] = '%s' % e
-            return (self.response, view)
+            return view
 
         metric_name = self.request.get('metric', default_value=None)
         if metric_name is None:
@@ -163,10 +162,10 @@ class EditMetricPageHandler(webapp.RequestHandler):
         if metric_name not in _metrics_data:
             view['error'] = ('No such metric: <span id="metric_name">%s</span>'
                              % metric_name)
-            return (self.response, view)
+            return view
 
         view['metric'] = _metrics_data[metric_name].Describe()
-        return (self.response, view)
+        return view
 
     @_client_secrets.oauth_required
     def post(self):
@@ -214,8 +213,7 @@ class NewMetricPageHandler(webapp.RequestHandler):
             (string) A web page (via the @view decorator) with input boxes
             for details for the metric to be created.
         """
-        view = {'metric': None, 'error': None}
-        return (self.response, view)
+        return {'metric': None, 'error': None}
 
 
 class DeleteMetricPageHandler(webapp.RequestHandler):
@@ -236,7 +234,7 @@ class DeleteMetricPageHandler(webapp.RequestHandler):
         if view['metric'] is None:
             self.redirect('/metrics')
 
-        return (self.response, view)
+        return view
 
     @_client_secrets.oauth_required
     def post(self):
@@ -268,4 +266,4 @@ class ContactUsPageHandler(webapp.RequestHandler):
     """
     @_TemplateFile('views/contact.tpl')
     def get(self):
-        return (self.response, {'error': None})
+        return {'error': None}
