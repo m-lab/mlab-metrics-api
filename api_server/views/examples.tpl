@@ -25,7 +25,7 @@ these API calls work.
 <p>
     Lookup the minimum round-trip-time (<code>rtt_min</code>) recorded for
     London, England in November, 2011.
-    <pre>/query?query=metric&name=rtt_min&year=2011&month=7&locale=826_eng_london <a class="btn btn-mini btn-primary" href="/query?query=metric&name=rtt_min&year=2011&month=7&locale=826_eng_london">try it out</a></pre>
+    <pre>/api/metric/rtt_min?year=2011&month=7&locale=826_eng_london <a class="btn btn-mini btn-primary" href="/api/metric/rtt_min?year=2011&month=7&locale=826_eng_london">try it out</a></pre>
     Returns:
     <pre>
 {
@@ -40,7 +40,7 @@ these API calls work.
 <p>
     Lookup the nearest city, region, and country to latitude 51.5171&deg; N and
     longitude 0.1062&deg; W for which there is Measurement Lab metrics data.
-    <pre>/query?query=nearest&lat=51.5171&lon=-0.1062 <a class="btn btn-mini btn-primary" href="/query?query=nearest&lat=51.5171&lon=-0.1062">try it out</a></pre>
+    <pre>/api/nearest?lat=51.5171&lon=-0.1062 <a class="btn btn-mini btn-primary" href="/api/nearest?lat=51.5171&lon=-0.1062">try it out</a></pre>
     Returns:
     <pre>
 {
@@ -54,7 +54,7 @@ these API calls work.
 <h2 class="sectionhead">Example "locale" API Call</h2>
 <p>
     Lookup the locale details for Carabobo, Venezuela (<code>862_g</code>).
-    <pre>/query?query=locale&locale=862_g <a class="btn btn-mini btn-primary" href="/query?query=locale&locale=862_g">try it out</a></pre>
+    <pre>/api/locale/862_g <a class="btn btn-mini btn-primary" href="/api/locale/862_g">try it out</a></pre>
     Returns:
     <pre>
 {

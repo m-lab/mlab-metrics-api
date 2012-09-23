@@ -39,7 +39,7 @@ The M-Lab Metrics API Server hosts a collection of metrics derived from the M-La
 
 <h2 class="sectionhead">For Example</h2>
 <p>
-Suppose you're want to know <strong>the maximum upload throughput in Paris in January, 2012</strong>.  This can be queried using <a class="btn btn-mini" href="/query?query=metric&name=upload_throughput_max&year=2012&month=1&locale=250_j_paris">a simple GET statement</a> and returns <code>0.61 MBytes</code>.  <strong>The previous year?</strong> <code>0.52 MBytes</code>  <strong>And the year before that?</strong> <code>0.51 MBytes</code>
+Suppose you're want to know <strong>the maximum upload throughput in Paris in January, 2012</strong>.  This can be queried using <a class="btn btn-mini" href="/api/metric/upload_throughput_max?year=2012&month=1&locale=250_j_paris">a simple GET statement</a> and returns <code>0.61 MBytes</code>.  <strong>The previous year?</strong> <code>0.52 MBytes</code>  <strong>And the year before that?</strong> <code>0.51 MBytes</code>
 <p>
 
 </p>

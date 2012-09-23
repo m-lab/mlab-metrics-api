@@ -63,8 +63,8 @@ metrics and view metric details, including:
 <h2 class="sectionhead">Query the Metrics API</h2>
 
 <p>
-Example: <code>/query?query=metric&name=rtt_min&year=2011&month=7&locale=826_eng_london</code>
-<a class="btn btn-mini btn-primary" href="/query?query=metric&name=rtt_min&year=2011&month=7&locale=826_eng_london">try it out</a>
+Example: <code>/api/metric/rtt_min?year=2011&month=7&locale=826_eng_london</code>
+<a class="btn btn-mini btn-primary" href="/api/metric/rtt_min?year=2011&month=7&locale=826_eng_london">try it out</a>
 </p>
 
 <p>
@@ -75,15 +75,6 @@ make a successful call, you'll need the following parameters:
 <p><em>All parameters are required.</em></p>
 
 <dl>
-    <dt>query</dt>
-    <dd>The <code>query</code> parameter will always be set to
-        <code>query=metric</code>. This identifies the call as an API query of
-        the metric data.</dd>
-
-    <dt>name</dt>
-    <dd>The metric name (e.g. <code>name=rtt_min</code>).  The metric name can
-        be determined by browsing the <a href="/metrics">Metrics List</a>.</dd>
-
     <dt>year</dt>
     <dd>The year to be retrieved (e.g. <code>year=2011</code>).  The Metrics API
         currently has data for 2010, 2011, and 2012.</dd>
@@ -102,8 +93,8 @@ make a successful call, you'll need the following parameters:
 <h2 class="sectionhead">Calling the Nearest Neighbor API</h2>
 
 <p>
-Example: <code>/query?query=nearest&lat=51.5171&lon=-0.1062</code>
-<a class="btn btn-mini btn-primary" href="/query?query=nearest&lat=51.5171&lon=-0.1062">try it out</a>
+Example: <code>/api/nearest?lat=51.5171&lon=-0.1062</code>
+<a class="btn btn-mini btn-primary" href="/api/nearest?lat=51.5171&lon=-0.1062">try it out</a>
 </p>
 
 <p>
@@ -114,11 +105,6 @@ to a given latitude and longitude.  You'll need the following parameters:
 <p><em>All parameters are required.</em></p>
 
 <dl>
-    <dt>query</dt>
-    <dd>The <code>query</code> parameter will always be set to
-        <code>query=nearest</code>. This identifies the call as an API query of
-        the nearest neighbor data.</dd>
-
     <dt>lat</dt>
     <dd>The latitude for the target location to identify (e.g.
         <code>lat=51.5171</code>).  Note that South latitudes are negative.</dd>
@@ -131,26 +117,13 @@ to a given latitude and longitude.  You'll need the following parameters:
 <h2 class="sectionhead">Calling the Locale Info API</h2>
 
 <p>
-Example: <code>/query?query=locale&locale=862_g</code>
-<a class="btn btn-mini btn-primary" href="/query?query=locale&locale=862_g">try it out</a>
+Example: <code>/api/locale/862_g</code>
+<a class="btn btn-mini btn-primary" href="/api/locale/862_g">try it out</a>
 </p>
 
 <p>
 The Locale Info API query retrieves detailed info for a given locale, for its
-parent locale, and for all of its children locales.  You'll need the following
-parameters:
+parent locale, and for all of its children locales.  There are no parameters.
 </p>
-
-<p><em>All parameters are required.</em></p>
-
-<dl>
-    <dt>query</dt>
-    <dd>The <code>query</code> parameter will always be set to
-        <code>query=locale</code>. This identifies the call as an API query of
-        the locale data.</dd>
-    
-    <dt>locale</dt>
-    <dd>The locale to detail (e.g. <code>locale=862_g</code>).
-</dl>
 
 %include footer

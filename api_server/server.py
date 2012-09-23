@@ -35,7 +35,9 @@ from google.appengine.ext.webapp.util import run_wsgi_app
 
 import locales
 import metrics
-import query_engine
+from query_engine import HandleLocaleQuery
+from query_engine import HandleMetricQuery
+from query_engine import HandleNearestNeighborQuery
 
 _bigquery = None
 _locale_finder = locales.LocaleFinder()
@@ -54,33 +56,83 @@ def start(bigquery):
     run_wsgi_app(bottle.default_app())
 
 
-@route('/query')
-def api_query(params=None):
-    """Handle an API query and send a response in JSON.
+@route('/api/locale/<locale_name>')
+def locale_api_query(locale_name):
+    """Handle a locale API query and send a response in JSON.
 
-    Note that the results vary wildly depending on the query, so unfortunately I
-    cannot give more detail here about what exactly is returned.
-
-    Args:
-        params (dict): Parameters of the query.  If None, parameters are taken
-            from the bottle 'request.GET' variable.
+    This function will return a dict which is then JSONified by Bottle. If the
+    requested locale does not exist, a JSON error is returned.  Otherwise
+    details are returned for this locale, for its direct parent, and for all of
+    its direct children.
 
     Returns:
-        (dict) If called directly, a dict with the results from the query.
-        (string) If called through bottle at the specified @route, a valid JSON
-        representation of the query results.
+        (string) JSON describing either the requested locale or any lookup
+        errors.
     """
-    if params is None:
-        params = request.GET
+    try:
+        locales.refresh(_bigquery, _locales_data, _locale_finder)
+    except locales.RefreshError as e:
+        return {'error': '%s' % e}
+
+    return HandleLocaleQuery(_locales_data, locale_name)
+
+
+@route('/api/metric/<metric_name>')
+def metric_api_query(metric_name):
+    """Handle a metric API query and send a response in JSON.
+
+    Expects GET params "locale", "year", and "month" to narrow the metric
+    request.  For example one should ask for a specific metric for Tokyo on July
+    2011.
+
+    This function will return a dict which is then JSONified by Bottle. If the
+    requested metric does not exist or if any expected GET parameters are not
+    specified, a JSON error is returned.  Otherwise metric details are returned
+    for the specific query.
+
+    Returns:
+        (string) JSON describing either the requested metric or any lookup
+        errors.
+    """
+    #todo: allow 1 out of 3 GET params to be empty for broader queries
+    year = request.GET.get('year', None)
+    month = request.GET.get('month', None)
+    locale = request.GET.get('locale', None)
 
     try:
         metrics.refresh(_bigquery, _metrics_data)
-        locales.refresh(_bigquery, _locales_data, _locale_finder)
-    except (locales.RefreshError, metrics.RefreshError) as e:
+    except metrics.RefreshError as e:
         return {'error': '%s' % e}
 
-    return query_engine.handle(params, _locales_data, _metrics_data,
-                               _locale_finder)
+    return HandleMetricQuery(_metrics_data, metric_name, locale, year, month)
+
+
+@route('/api/nearest')
+def nearest_api_query():
+    """Handle a nearest-neighbor API query and send a response in JSON.
+
+    Expects GET params "lat" and "lon", the latitude and longitude coordinates
+    that will be used for a nearest neighbor lookup.  If the lookup succeeds the
+    user will receive the nearest country, region, and city.
+
+    This function will return a dict which is then JSONified by Bottle. If there
+    is a problem looking up nearest locales or if any expected GET parameters
+    are not specified, a JSON error is returned.  Otherwise nearest locales are
+    returned for the specified latitude and longitude coordinates.
+
+    Returns:
+        (string) JSON describing either the locales nearest to the specified
+        coordinates, or any error while attempting lookup.
+    """
+    lat = request.GET.get('lat', None)
+    lon = request.GET.get('lon', None)
+
+    try:
+        locales.refresh(_bigquery, _locales_data, _locale_finder)
+    except locales.RefreshError as e:
+        return {'error': '%s' % e}
+
+    return HandleNearestNeighborQuery(_locale_finder, lat, lon)
 
 
 @route('/details')
@@ -118,12 +170,16 @@ def metric_details(metric_name=None):
         return view
 
     # Generate sample API query and its response.
+    sample_locale = '826_eng_london'
+    sample_year = 2012
+    sample_month = 1
+
     view['metric'] = _metrics_data[metric_name].Describe()
-    view['sample_api_query'] = ('/query?query=metric&name=%s&year=2012&month=1'
-                                '&locale=826_eng_london' % metric_name)
-    params = view['sample_api_query'].split('?')[-1]
-    params = dict(x.split('=') for x in params.split('&'))
-    view['sample_api_response'] = json.dumps(api_query(params))
+    view['sample_api_query'] = (
+        '/api/metric/%s?year=%d&month=%d&locale=%s' %
+        (metric_name, sample_year, sample_month, sample_locale))
+    view['sample_api_response'] = json.dumps(HandleMetricQuery(
+        _metrics_data, metric_name, sample_locale, sample_year, sample_month))
 
     return view
 

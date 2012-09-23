@@ -22,54 +22,12 @@ todo: Lots more text.
 import logging
 import metrics
 
-VALID_REQUEST_TYPES = {
-    'help': 'explain the supported query types',
-    'locale': 'query relationships & specifications for a given locale',
-    'metric': 'query metric data for a given metric & parameters',
-    'nearest': 'find the nearest locale to a given latitude & longitude'}
 
-VALID_LOCALE_TYPES = {
-    'city': 'a town or city; the finest level of granularity',
-    'country': 'a country',
-    'region': 'a state in the USA, or equivalent for other countries',
-    'world': 'the world; the broadest level of granularity'}
+def HandleLocaleQuery(locales_data, locale):
+    """Verifies passed arguments and issues a lookup of locale data.
 
-
-#todo: handle queries for nearest-locale given a set of coordinates
-
-def handle(params, locales_data, metrics_data, localefinder):
-    request_type = params.get('query', None)
-
-    if request_type is None or request_type not in VALID_REQUEST_TYPES:
-        help_str = ', '.join('"%s" (%s)' % (k, v)
-                             for k, v in VALID_REQUEST_TYPES.iteritems())
-        return {'error': 'Must provide a GET parameter "query" identifying the'
-                         ' type of query you wish to perform.  Valid requests'
-                         ' are %s.' % help_str}
-
-    if request_type == 'locale':
-        return _handle_locale_query(params, locales_data)
-
-    if request_type == 'nearest':
-        return _handle_nearest_query(params, localefinder)
-
-    if request_type == 'metric':
-        return _handle_metric_query(params, metrics_data)
-
-    return {'error': 'Unknown query type "%s".' % request_type}
-
-
-def _handle_locale_query(params, locales_data):
-    locale = params.get('locale', None)
-
-    if locale is None:
-        locale_str = ', '.join('a %s (%s)' % (k, v)
-                               for k, v in VALID_LOCALE_TYPES.iteritems())
-        return {'error': 'Must provide a GET parameter "locale" identifying the'
-                         ' locale you wish to query.  Valid locales are %s.  '
-                         'For example, "", "840", "840_az", or "840_az_tucson".'
-                         % locale_str}
-
+    todo: details
+    """
     if locale not in locales_data:
         return {'error': 'Locale "%s" does not exist.' % locale}
 
@@ -86,24 +44,23 @@ def _handle_locale_query(params, locales_data):
     return reply
 
 
-def _handle_metric_query(params, metrics_data):
-    metric_name = params.get('name', None)
-    year = params.get('year', None)
-    month = params.get('month', None)
-    locale = params.get('locale', None)
+def HandleMetricQuery(metrics_data, metric, locale, year, month):
+    """Verifies passed arguments and issues a lookup of metric data.
 
+    todo: details
+    """
     # Anticipate non-standard locale= requests for world data.
     if locale in ('', '""', "''", 'world', 'global'):
         locale = 'world'
 
-    # Validate the params.
-    if metric_name is None:
+    # Validate query parameters.
+    if metric is None:
         return {'error': 'Must provide a GET parameter "name" identifying the'
                          ' metric you wish to query.'}
 
-    if metric_name not in metrics_data:
+    if metric not in metrics_data:
         return {'error': 'Unknown metric "%s".  Valid metrics are %s' % 
-                         (metric_name, ', '.join(metrics_data))}
+                         (metric, ', '.join(metrics_data))}
 
     if year is None or month is None:
         return {'error': 'Must provide GET parameters "year" and "month"'
@@ -119,17 +76,18 @@ def _handle_metric_query(params, metrics_data):
 
     # Lookup & return the data.
     try:
-        data = metrics_data[metric_name].Lookup(int(year), int(month), locale)
+        data = metrics_data[metric].Lookup(int(year), int(month), locale)
     except metrics.Error as e:
         return {'error': '%s' % e}
 
     return data
 
 
-def _handle_nearest_query(params, localefinder):
-    lat = params.get('lat', None)
-    lon = params.get('lon', None)
+def HandleNearestNeighborQuery(locale_finder, lat, lon):
+    """Verifies passed arguments and issues a nearest neighbor lookup.
 
+    todo: details
+    """
     try:
         lat = float(lat)
         lon = float(lon)
@@ -140,4 +98,4 @@ def _handle_nearest_query(params, localefinder):
         return {'error': 'Must provide parameters "lat" for latitude and "lon" '
                          'for longitude.'}
 
-    return localefinder.FindNearestNeighbors(lat, lon)
+    return locale_finder.FindNearestNeighbors(lat, lon)
