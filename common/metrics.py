@@ -111,16 +111,9 @@ class Metric(object):
                 continue
             self.__dict__[field] = result[field]
 
-    def LoadDataFile(self, date, locale):
+    def LoadData(self, date, locale):
         #todo: move the "load/update" logic out of the metric class.
         """Loads/updates data for this metric for the given 'date' and 'locale'.
-
-        This method expects that metric data files are located at
-            METRICS_DIR/<metric_name>/YYYY-MM/<locale_type>.csv
-        where METRICS_DIR is a global defined in metrics.py, YYYY-MM are taken
-        from the passed 'date', and <locale_type> is derived from the passed
-        'locale'.  The metric data is not returned, it's loaded into memory so
-        that it can be queried later.
 
         Args:
             date (tuple): Date for which data should be loaded, given as a tuple
@@ -186,7 +179,7 @@ class Metric(object):
         self.metadata[date]['last_request_time'] = datetime.now()
 
         if date not in self.data or locale not in self.data[date]:
-            self.LoadDataFile(date, locale)
+            self.LoadData(date, locale)
 
         if date not in self.data or locale not in self.data[date]:
             raise LookupError('No data for metric=%s, year=%d, month=%d,'
