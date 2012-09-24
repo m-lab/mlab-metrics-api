@@ -35,9 +35,7 @@ from google.appengine.ext.webapp.util import run_wsgi_app
 
 import locales
 import metrics
-from query_engine import HandleLocaleQuery
-from query_engine import HandleMetricQuery
-from query_engine import HandleNearestNeighborQuery
+import query_engine
 
 _bigquery = None
 _locale_finder = locales.LocaleFinder()
@@ -74,7 +72,10 @@ def locale_api_query(locale_name):
     except locales.RefreshError as e:
         return {'error': '%s' % e}
 
-    return HandleLocaleQuery(_locales_data, locale_name)
+    try:
+        return query_engine.HandleLocaleQuery(_locales_data, locale_name)
+    except query_engine.Error as e:
+        return {'error': '%s' % e}
 
 
 @route('/api/metric/<metric_name>')
@@ -104,7 +105,11 @@ def metric_api_query(metric_name):
     except metrics.RefreshError as e:
         return {'error': '%s' % e}
 
-    return HandleMetricQuery(_metrics_data, metric_name, locale, year, month)
+    try:
+        return query_engine.HandleMetricQuery(
+            _metrics_data, metric_name, locale, int(year), int(month))
+    except (query_engine.Error, ValueError) as e:
+        return {'error': '%s' % e}
 
 
 @route('/api/nearest')
@@ -132,7 +137,11 @@ def nearest_api_query():
     except locales.RefreshError as e:
         return {'error': '%s' % e}
 
-    return HandleNearestNeighborQuery(_locale_finder, lat, lon)
+    try:
+        return query_engine.HandleNearestNeighborQuery(
+            _locale_finder, float(lat), float(lon))
+    except (query_engine.Error, ValueError) as e:
+        return {'error': '%s' % e}
 
 
 @route('/details')
@@ -173,13 +182,17 @@ def metric_details(metric_name=None):
     sample_locale = '826_eng_london'
     sample_year = 2012
     sample_month = 1
+    try:
+        sample_api_response = query_engine.HandleMetricQuery(
+            _metrics_data, metric_name, sample_locale, sample_year, sample_month)
+    except query_engine.Error as e:
+        sample_api_response = {'error': '%s' % e}
 
     view['metric'] = _metrics_data[metric_name].Describe()
     view['sample_api_query'] = (
         '/api/metric/%s?year=%d&month=%d&locale=%s' %
         (metric_name, sample_year, sample_month, sample_locale))
-    view['sample_api_response'] = json.dumps(HandleMetricQuery(
-        _metrics_data, metric_name, sample_locale, sample_year, sample_month))
+    view['sample_api_response'] = json.dumps(sample_api_response)
 
     return view
 
