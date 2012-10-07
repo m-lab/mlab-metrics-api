@@ -20,6 +20,7 @@
 
 import logging
 
+import big_query_backend
 import big_query_client
 import server
 
@@ -36,7 +37,8 @@ def main():
     logging.getLogger().setLevel(logging.DEBUG)
     bigquery = big_query_client.ClientSecretsBQClient(
         BIGQUERY_PROJECT_ID, BIGQUERY_DATASET)
-    server.start(bigquery)
+    backend = big_query_backend.BigQueryBackend(bigquery)
+    server.start(backend)
 
 
 if __name__ == '__main__':

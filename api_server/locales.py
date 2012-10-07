@@ -25,10 +25,8 @@ import logging
 import math
 import os
 
+import backend as backend_interface
 from deps.kdtree import KDTree
-import big_query_client
-
-LOCALES_TABLE = '_locales'
 
 # Timeout when cached locales should be considered old.
 LOCALE_REFRESH_RATE = timedelta(days=2)
@@ -290,7 +288,7 @@ class LocaleFinder(object):
         self._cities = self.GeoTree(cities, locale_data)
 
 
-def refresh(bigquery, locale_dict, localefinder):
+def refresh(backend, locale_dict, localefinder):
     #todo: move the "refresh" logic to its own file.
     global _last_locale_refresh
 
@@ -307,20 +305,13 @@ def refresh(bigquery, locale_dict, localefinder):
     # Must build Locales in largest-to-smallest order so that parent references
     # can be resolved.
     for locale_type in ('country', 'region', 'city'):
-        #todo: figure out why this query fails without the 'WHERE'.  timeout?
-        query = ('SELECT locale, name, parent, lat, lon'
-                 '  FROM %s.%s'
-                 ' WHERE type = "%s"' %
-                 (bigquery.dataset, LOCALES_TABLE, locale_type))
-
         try:
-            result = bigquery.Query(query)
-        except big_query_client.Error as e:
-            raise RefreshError('Could not load locale info from BigQuery: %s'
-                               % e)
+            info = backend.GetLocaleData(locale_type)
+        except backend_interface.LoadError as e:
+            raise RefreshError(e)
 
         # Parse and build Locales into the locale_dict.
-        for row in result['data']:
+        for row in info['data']:
             locale, name, parent, lat, lon = row
 
             locale_dict[locale] = Locale(

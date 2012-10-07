@@ -37,20 +37,20 @@ import locales
 import metrics
 import query_engine
 
-_bigquery = None
+_backend = None
 _locale_finder = locales.LocaleFinder()
 _locales_data = dict()
 _metrics_data = dict()
 
 
-def start(bigquery):
+def start(backend):
     """Start the bottle web framework on AppEngine.
 
     This function never returns.
     """
-    global _bigquery
+    global _backend
 
-    _bigquery = bigquery
+    _backend = backend
     run_wsgi_app(bottle.default_app())
 
 
@@ -68,7 +68,7 @@ def locale_api_query(locale_name):
         errors.
     """
     try:
-        locales.refresh(_bigquery, _locales_data, _locale_finder)
+        locales.refresh(_backend, _locales_data, _locale_finder)
     except locales.RefreshError as e:
         return {'error': '%s' % e}
 
@@ -101,7 +101,7 @@ def metric_api_query(metric_name):
     locale = request.GET.get('locale', None)
 
     try:
-        metrics.refresh(_bigquery, _metrics_data)
+        metrics.refresh(_backend, _metrics_data)
     except metrics.RefreshError as e:
         return {'error': '%s' % e}
 
@@ -133,7 +133,7 @@ def nearest_api_query():
     lon = request.GET.get('lon', None)
 
     try:
-        locales.refresh(_bigquery, _locales_data, _locale_finder)
+        locales.refresh(_backend, _locales_data, _locale_finder)
     except locales.RefreshError as e:
         return {'error': '%s' % e}
 
@@ -168,7 +168,7 @@ def metric_details(metric_name=None):
             return view
 
     try:
-        metrics.refresh(_bigquery, _metrics_data)
+        metrics.refresh(_backend, _metrics_data)
     except metrics.RefreshError as e:
         view['error'] = '%s' % e
         return view
@@ -214,7 +214,7 @@ def list_metrics():
     view = {'metrics': [], 'error': None}
 
     try:
-        metrics.refresh(_bigquery, _metrics_data)
+        metrics.refresh(_backend, _metrics_data)
     except metrics.RefreshError as e:
         view['error'] = '%s' % e
         return view

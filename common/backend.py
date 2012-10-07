@@ -1,0 +1,39 @@
+# Copyright 2012 Google Inc. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Author: Dylan Curley
+
+"""This module ...
+
+todo: Lots more text.
+"""
+
+
+class Error(Exception):
+    pass
+
+class LoadError(Error):
+    pass
+
+
+class Backend(object):
+    def SetClientHTTP(self, http):
+        pass
+    def GetMetricInfo(self, metric_name):
+        pass
+    def SetMetricInfo(self, metric_info):
+        pass
+    def GetMetricData(self, metric_name, date, locale):
+        pass
+

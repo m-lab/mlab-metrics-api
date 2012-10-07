@@ -32,7 +32,7 @@ from oauth2client.appengine import OAuth2DecoratorFromClientSecrets
 
 import metrics
 
-_bigquery = None
+_backend = None
 _metrics_data = dict()
 _client_secrets = OAuth2DecoratorFromClientSecrets(
     os.path.join(os.path.dirname(__file__), 'client_secrets.json'),
@@ -60,9 +60,9 @@ def _TemplateFile(filename):
 
 def _RefreshMetricsData(http):
     try:
-        _bigquery.SetClientHTTP(http)
-        metrics.refresh(_bigquery, _metrics_data)
-        _bigquery.SetClientHTTP(None)  #todo: finally?
+        _backend.SetClientHTTP(http)
+        metrics.refresh(_backend, _metrics_data)
+        _backend.SetClientHTTP(None)  #todo: finally?
     except metrics.RefreshError as e:
         raise RefreshError(e)
 
@@ -70,14 +70,14 @@ def _RefreshMetricsData(http):
         raise RefreshError('The metric database is empty.')
 
 
-def start(bigquery):
+def start(backend):
     """Start the bottle web framework on AppEngine.
 
     This function never returns.
     """
-    global _bigquery
+    global _backend
 
-    _bigquery = bigquery
+    _backend = backend
     application = webapp.WSGIApplication(
         [('/',        IntroPageHandler),
          ('/intro',   IntroPageHandler),
@@ -189,11 +189,11 @@ class EditMetricPageHandler(webapp.RequestHandler):
             return
 
         try:
-            _bigquery.SetClientHTTP(_client_secrets.http())
-            metrics.edit_metric(_bigquery, _metrics_data, name, units=units,
+            _backend.SetClientHTTP(_client_secrets.http())
+            metrics.edit_metric(_backend, _metrics_data, name, units=units,
                                 short_desc=short_desc, long_desc=long_desc,
                                 query=query)
-            _bigquery.SetClientHTTP(None)  #todo: finally?
+            _backend.SetClientHTTP(None)  #todo: finally?
         except metrics.RefreshError as e:
             self.redirect('/metrics?error=%s' % e)
             return
@@ -245,9 +245,9 @@ class DeleteMetricPageHandler(webapp.RequestHandler):
         name = self.request.get('name', default_value=None)
 
         try:
-            _bigquery.SetClientHTTP(_client_secrets.http())
-            metrics.edit_metric(_bigquery, _metrics_data, name, delete=True)
-            _bigquery.SetClientHTTP(None)  #todo: finally?
+            _backend.SetClientHTTP(_client_secrets.http())
+            metrics.edit_metric(_backend, _metrics_data, name, delete=True)
+            _backend.SetClientHTTP(None)  #todo: finally?
         except metrics.RefreshError as e:
             self.redirect('/metrics?error=%s' % e)
             return
