@@ -32,7 +32,12 @@ Author: Dylan Curley
         <div class="control-group">
             <label class="control-label" for="name">Metric name</label>
             <div class="controls">
-                <input class="input-xlarge {% if metric %}uneditable-input{% endif %}" id="name" name="name" type="text" value="{{ metric.name }}" />
+                {% if metric %}
+                <span class="input-xlarge uneditable-input" id="name">{{ metric.name }}</span>
+                <input name="name" type="hidden" value="{{ metric.name }}" />
+                {% else %}
+                <input class="input-xlarge" id="name" name="name" type="text" value="{{ metric.name }}" />
+                {% endif %}
             </div>
         </div>
 
