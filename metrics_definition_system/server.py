@@ -104,7 +104,8 @@ class IntroPageHandler(webapp.RequestHandler):
     """
     @_TemplateFile('views/introduction.tpl')
     def get(self):
-        return {'error': None}
+        return {'note': self.request.get('note', default_value=None),
+                'error': self.request.get('error', default_value=None)}
 
 
 class ListMetricsPageHandler(webapp.RequestHandler):
@@ -121,7 +122,9 @@ class ListMetricsPageHandler(webapp.RequestHandler):
     @_client_secrets.oauth_required
     @_TemplateFile('views/list_metrics.tpl')
     def get(self):
-        view = {'metrics': [], 'error': None}
+        view = {'metrics': [],
+                'note': self.request.get('note', default_value=None),
+                'error': self.request.get('error', default_value=None)}
 
         try:
             _RefreshMetricsData(_client_secrets.http())
@@ -148,7 +151,9 @@ class EditMetricPageHandler(webapp.RequestHandler):
             (string) A web page (via the @view decorator) listing details for
             the requested metric, in a form that allows details to be edited.
         """
-        view = {'metric': [], 'error': None}
+        view = {'metric': [],
+                'note': self.request.get('note', default_value=None),
+                'error': self.request.get('error', default_value=None)}
 
         try:
             _RefreshMetricsData(_client_secrets.http())
@@ -218,7 +223,9 @@ class NewMetricPageHandler(webapp.RequestHandler):
             (string) A web page (via the @view decorator) with input boxes
             for details for the metric to be created.
         """
-        return {'metric': None, 'error': None}
+        return {'metric': None,
+                'note': self.request.get('note', default_value=None),
+                'error': self.request.get('error', default_value=None)}
 
 
 class DeleteMetricPageHandler(webapp.RequestHandler):
@@ -233,9 +240,10 @@ class DeleteMetricPageHandler(webapp.RequestHandler):
             (string) A web page (via the @view decorator) requesting
             verification that the user wishes to delete the specified metric.
         """
-        view = {'error': None}
+        view = {'metric': self.request.get('metric', default_value=None),
+                'note': self.request.get('note', default_value=None),
+                'error': self.request.get('error', default_value=None)}
 
-        view['metric'] = self.request.get('metric', default_value=None)
         if view['metric'] is None:
             self.redirect('/metrics')
 
@@ -272,4 +280,5 @@ class ContactUsPageHandler(webapp.RequestHandler):
     """
     @_TemplateFile('views/contact.tpl')
     def get(self):
-        return {'error': None}
+        return {'note': self.request.get('note', default_value=None),
+                'error': self.request.get('error', default_value=None)}

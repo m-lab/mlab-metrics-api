@@ -34,6 +34,13 @@ Author: Dylan Curley
         </p>
     </div>
 
+    {% if error|default_if_none:"" != "" %}
+    <div class="alert alert-error"><strong>Error:</strong> {{error}}</div>
+    {% endif %}
+    {% if note|default_if_none:"" != "" %}
+    <div class="alert alert-success">{{note}}</div>
+    {% endif %}
+
     <div class="row-fluid">
         <div class="span2 well" id="nav">
             <!-- sidebar -->
@@ -59,9 +66,4 @@ Author: Dylan Curley
             </ul>
         </div>
 
-        {% if error|default_if_none:"" != "" %}
-        <div class="span10 alert alert-error"><strong>Error:</strong> {{error}}</div>
-        <div style="visible: false;">
-        {% else %}
         <div class="span10">
-        {% endif %}
