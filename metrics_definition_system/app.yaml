@@ -31,5 +31,9 @@ handlers:
 - url: /oauth2callback
   script: oauth2client/appengine.py
 
+- url: /(|intro|contact)
+  script: main.py
+
 - url: /.*
   script: main.py
+  login: admin
