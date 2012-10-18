@@ -212,7 +212,7 @@ def DetermineLocaleType(locale_str):
     return depth_map[depth]
 
 
-def edit_metric(backend, metrics_dict, metric_name, units=None,
+def edit_metric(request_type, backend, metrics_dict, metric_name, units=None,
                 short_desc=None, long_desc=None, query=None, delete=False):
     """Update values for the given metric.
     """
@@ -228,7 +228,7 @@ def edit_metric(backend, metrics_dict, metric_name, units=None,
                                          long_desc=long_desc, query=query)
 
     infos = dict((m, metrics_dict[m].Describe()) for m in metrics_dict)
-    backend.SetMetricInfo(infos)
+    backend.SetMetricInfo(request_type, metric_name, infos)
 
 
 def refresh(backend, metrics_dict):

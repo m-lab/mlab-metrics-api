@@ -27,12 +27,18 @@ class LoadError(Error):
     pass
 
 
+class RequestType:
+    EDIT = 'edit'
+    DELETE = 'delete'
+    NEW = 'new'
+
+
 class Backend(object):
     def SetClientHTTP(self, http):
         pass
     def GetMetricInfo(self, metric_name):
         pass
-    def SetMetricInfo(self, metric_info):
+    def SetMetricInfo(self, request_type, metric_name, metric_info):
         pass
     def GetMetricData(self, metric_name, date, locale):
         pass

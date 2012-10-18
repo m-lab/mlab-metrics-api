@@ -30,6 +30,7 @@ from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp.util import run_wsgi_app
 from oauth2client.appengine import OAuth2DecoratorFromClientSecrets
 
+import backend as backend_interface
 import metrics
 
 _backend = None
@@ -169,7 +170,7 @@ class EditMetricPageHandler(webapp.RequestHandler):
 
     @_client_secrets.oauth_required
     def post(self):
-        """Handles "post" requests for the Edit Metric page.
+        """Handles "post" requests for the Edit/New Metric page.
         
         Saves updated metric details, then redirects to the "List Metrics" page.
         """
@@ -178,6 +179,10 @@ class EditMetricPageHandler(webapp.RequestHandler):
         short_desc = self.request.get('short_desc', default_value=None)
         long_desc = self.request.get('long_desc', default_value=None)
         query = self.request.get('query', default_value=None)
+        if name in _metrics_data:
+            request_type = backend_interface.RequestType.EDIT
+        else:
+            request_type = backend_interface.RequestType.NEW
 
         logging.debug('POST: name="%s (%s)", units="%s", short_desc="%s", '
                       'long_desc="%s", query="%s"' %
@@ -190,9 +195,9 @@ class EditMetricPageHandler(webapp.RequestHandler):
 
         try:
             _backend.SetClientHTTP(_client_secrets.http())
-            metrics.edit_metric(_backend, _metrics_data, name, units=units,
-                                short_desc=short_desc, long_desc=long_desc,
-                                query=query)
+            metrics.edit_metric(request_type, _backend, _metrics_data, name,
+                                units=units, short_desc=short_desc,
+                                long_desc=long_desc, query=query)
             _backend.SetClientHTTP(None)  #todo: finally?
         except metrics.RefreshError as e:
             self.redirect('/metrics?error=%s' % e)
@@ -246,7 +251,8 @@ class DeleteMetricPageHandler(webapp.RequestHandler):
 
         try:
             _backend.SetClientHTTP(_client_secrets.http())
-            metrics.edit_metric(_backend, _metrics_data, name, delete=True)
+            metrics.edit_metric(backend_interface.RequestType.DELETE,
+                                _backend, _metrics_data, name, delete=True)
             _backend.SetClientHTTP(None)  #todo: finally?
         except metrics.RefreshError as e:
             self.redirect('/metrics?error=%s' % e)

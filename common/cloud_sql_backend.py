@@ -20,7 +20,6 @@ todo: Lots more text.
 """
 
 import backend
-import big_query_client
 import logging
 from metrics import DetermineLocaleType
 import pprint
@@ -29,31 +28,18 @@ LOCALES_TABLE = '_locales'
 METADATA_TABLE = '_metadata'
 
 
-class BigQueryBackend(backend.Backend):
-    def __init__(self, bigquery):
+class CloudSQLBackend(backend.Backend):
+    def __init__(self, cloudsql):
         """Constructor.
 
         Args:
-            bigquery (object): BigQuery client instance.
+            cloudsql (object): CloudSQL client instance.
         """
-        self._bigquery = bigquery
-        super(BigQueryBackend, self).__init__()
-
-    def SetClientHTTP(self, http):
-        """Sets the http client to the passed 'http'.
-
-        This is necessary when using a ClientSecretsBQClient, which validates
-        via oauth2 client secrets.
-
-        Args:
-            http: The authorized client http.
-        """
-        self._bigquery.SetClientHTTP(http)
+        self._cloudsql = cloudsql
+        super(CloudSQLBackend, self).__init__()
 
     def GetMetricInfo(self, metric_name=None):
-        #todo: figure out how to query once for all metrics (it's not that much
-        #      data) instead of querying once for each metric
-        """Retrieves metadata for the specified metric, from BigQuery.
+        """Retrieves metadata for the specified metric, from CloudSQL.
 
         Args:
             metric_name (string): Name of the metric to query.  If None or not
@@ -61,20 +47,20 @@ class BigQueryBackend(backend.Backend):
 
         Raises:
             LoadError: If there was an error getting the metric info from
-                BigQuery.
+                CloudSQL.
 
         Returns:
             (dict): Collection of data for the requested metric, keyed by the
             data type.  If no metric was requested, returns a dict of these
             collections (a dict inside a dict), keyed by metric name.
         """
-        query = ('SELECT name, units, short_desc, long_desc, query'
-                 '  FROM %s.%s' % (self._bigquery.dataset, METADATA_TABLE))
+        query = ('SELECT *'
+                 '  FROM %s' % METADATA_TABLE)
         if metric_name is not None:
-            query += (' WHERE name = "%s"' % metric_name)
+            query += (' WHERE name="%s"' % metric_name)
 
         try:
-            result = self._bigquery.Query(query)
+            result = self._cloudsql.Query(query)
         except big_query_client.Error as e:
             raise backend.LoadError('Could not load metric info for "%s" from'
                                     ' BigQuery: %s' % (metric_name, e))
@@ -90,30 +76,31 @@ class BigQueryBackend(backend.Backend):
             # There should be only one row in the result.
             return dict(zip(result['fields'], result['data'][0]))
 
-    def SetMetricInfo(self, unused_request_type, unused_metric_name, metrics_info):
+    def SetMetricInfo(self, request_type, metric_name, metrics_info):
         """Pushes the provided metric info to the backend data store.
 
-        Note that *ALL* metric info is replaced by the collection of info passed
-        to this method.  If info for certain metrics is not specified, they will
-        be deleted.
-
         Args:
+            request_type (RequestType): 
+            metric_name (string): If provided, only update the specified metric.
             metrics_info (dict): Collection of updated metric info to send to
                 the backend data store, keyed by metric name.
 
         Raises:
-            LoadError: If the requested updates could not be applied.
+            EditError: If the requested updates could not be applied.
         """
-        #todo: raise LoadError on failure
-        fields = tuple((f, 'string')
-                       for f in metrics_info[metrics_info.keys()[0]])
+        if request_type != backend.RequestType.DELETE:
+            new_data = dict((k, v)
+                            for (k, v) in metrics_info[metric_name].iteritems()
+                            if k != 'name')
 
-        field_data = []
-        for metric in metrics_info:
-            field_data.append(dict((f, metrics_info[metric][f])
-                              for (f, _) in fields))
-
-        self._bigquery.UpdateTable(METADATA_TABLE, fields, field_data)
+        if request_type == backend.RequestType.EDIT:
+            self._cloudsql.Update(METADATA_TABLE, metric_name, new_data)
+        elif request_type == backend.RequestType.NEW:
+            self._cloudsql.Create(METADATA_TABLE, metric_name, new_data)
+        elif request_type == backend.RequestType.DELETE:
+            self._cloudsql.Delete(METADATA_TABLE, metric_name)
+        else:
+            raise backend.EditError('Unrecognized request type: %s' % request_type)
 
     def GetMetricData(self, metric_name, date, locale):
         """Retrieves data for this metric for the given 'date' and 'locale'.
@@ -132,15 +119,15 @@ class BigQueryBackend(backend.Backend):
             (dict): Result data from the query, with keys "locale" and "value".
         """
         query = ('SELECT locale, value'
-                 '  FROM %s.%s'
-                 ' WHERE date = "%s"' %
-                 (self._bigquery.dataset, metric_name, '%d-%02d' % date))
+                 '  FROM %s'
+                 ' WHERE date="%s"' %
+                 (metric_name, '%4d-%02d-01' % date))
 
         try:
-            result = self._bigquery.Query(query)
-        except big_query_client.Error as e:
+            result = self._cloudsql.Query(query)
+        except cloud_sql_client.Error as e:
             raise backend.LoadError('Could not load metric data for "%s" from'
-                                    ' BigQuery: %s' % (metric_name, e))
+                                    ' CloudSQL: %s' % (metric_name, e))
         return result
 
     def GetLocaleData(self, locale_type):
@@ -154,15 +141,14 @@ class BigQueryBackend(backend.Backend):
             (dict): Result data from the query, with keys "locale", "name",
             "parent", "lat" (latitude), and "lon" (longitude).
         """
-        #todo: figure out why this query fails without the 'WHERE'.  timeout?
         query = ('SELECT locale, name, parent, lat, lon'
-                 '  FROM %s.%s'
-                 ' WHERE type = "%s"' %
-                 (self._bigquery.dataset, LOCALES_TABLE, locale_type))
+                 '  FROM %s'
+                 ' WHERE type="%s"' %
+                 (LOCALES_TABLE, locale_type))
 
         try:
-            result = self._bigquery.Query(query)
-        except big_query_client.Error as e:
-            raise backend.LoadError('Could not load locale info from BigQuery:'
+            result = self._cloudsql.Query(query)
+        except cloud_sql_client.Error as e:
+            raise backend.LoadError('Could not load locale info from CloudSQL:'
                                     ' %s' % e)
         return result
