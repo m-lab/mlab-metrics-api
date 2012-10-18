@@ -20,24 +20,24 @@
 
 import logging
 
-import big_query_backend
-import big_query_client
+import cloud_sql_backend
+import cloud_sql_client
 import server
 
-BIGQUERY_PROJECT_ID = 'measurement-lab'
-BIGQUERY_DATASET = 'metrics_api_server'
+CLOUDSQL_INSTANCE = 'mlab-metrics:database'
+CLOUDSQL_DATABASE = 'mlab_metrics'
 
 
 def main():
     """Run the world.
 
-    This function sets up logging, connects to BigQuery, and starts the API
+    This function sets up logging, connects to CloudSQL, and starts the API
     Server.  It never returns.
     """
     logging.getLogger().setLevel(logging.DEBUG)
-    bigquery = big_query_client.AppAssertionCredentialsBQClient(
-        BIGQUERY_PROJECT_ID, BIGQUERY_DATASET)
-    backend = big_query_backend.BigQueryBackend(bigquery)
+    client = cloud_sql_client.CloudSQLClient(
+        CLOUDSQL_INSTANCE, CLOUDSQL_DATABASE)
+    backend = cloud_sql_backend.CloudSQLBackend(client)
     server.start(backend)
 
 
