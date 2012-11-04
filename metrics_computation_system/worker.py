@@ -36,13 +36,16 @@ class StartupHandler(webapp.RequestHandler):
         logging.info('Received START request.')
         self.response.headers['Content-Type'] = 'text/plain'
         self.response.out.write('Started...')
+        # Noop.  All work is done when the task is received.
 
 
 class ShutdownHandler(webapp.RequestHandler):
     def get(self):
         logging.info('Received STOP request.')
         self.response.headers['Content-Type'] = 'text/plain'
-        self.response.out.write('Started...')
+        self.response.out.write('Shutting down.')
+        # Noop.  Workers watch & catch runtime.is_shutting_down().
+
 
 class TaskRequestHandler(webapp.RequestHandler):
     def post(self):
@@ -51,25 +54,17 @@ class TaskRequestHandler(webapp.RequestHandler):
         logging.info('Received work task. {request: %s, metric: %s}'
                      % (request, metric))
 
-        if request == 'refresh_locales':
-            _RefreshLocales()
-        elif request == 'delete_metric':
+        if request == 'delete_metric':
             _DeleteMetric(metric)
         elif request == 'refresh_metric':
             _RefreshMetric(metric)
         elif request == 'update_metric':
             _UpdateMetric(metric)
+        elif request == 'update_locales':
+            _UpdateLocales()
         else:
             logging.error('Unrecognized request: %s' % request)
 
-
-def _RefreshLocales():
-    #todo
-    # cloudsql = ...
-    while not runtime.is_shutting_down():
-        logging.debug('zzz in _RefreshLocales()')
-        time.sleep(20)
-    logging.debug('Shutting down.')
 
 def _DeleteMetric(metric):
     #todo
@@ -94,6 +89,14 @@ def _UpdateMetric(metric):
     # cloudsql = ...
     while not runtime.is_shutting_down():
         logging.debug('zzz in _UpdateMetric(%s)' % metric)
+        time.sleep(20)
+    logging.debug('Shutting down.')
+
+def _UpdateLocales():
+    #todo
+    # cloudsql = ...
+    while not runtime.is_shutting_down():
+        logging.debug('zzz in _UpdateLocales()')
         time.sleep(20)
     logging.debug('Shutting down.')
 

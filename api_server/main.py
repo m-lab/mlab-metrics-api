@@ -24,9 +24,6 @@ import cloud_sql_backend
 import cloud_sql_client
 import server
 
-CLOUDSQL_INSTANCE = 'mlab-metrics:database'
-CLOUDSQL_DATABASE = 'mlab_metrics'
-
 
 def main():
     """Run the world.
@@ -36,7 +33,7 @@ def main():
     """
     logging.getLogger().setLevel(logging.DEBUG)
     client = cloud_sql_client.CloudSQLClient(
-        CLOUDSQL_INSTANCE, CLOUDSQL_DATABASE)
+        cloud_sql_backend.INSTANCE, cloud_sql_backend.DATABASE)
     backend = cloud_sql_backend.CloudSQLBackend(client)
     server.start(backend)
 

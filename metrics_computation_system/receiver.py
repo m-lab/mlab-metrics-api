@@ -19,6 +19,9 @@ import logging
 from google.appengine.ext import webapp
 from google.appengine.api import taskqueue
 
+import backend as backend_interface
+import cloud_sql_backend
+import cloud_sql_client
 import server
 
 
@@ -55,7 +58,7 @@ class RefreshMetricHandler(webapp.RequestHandler):
         # Pass the refresh request on to the worker pool.
         for metric in metrics:
             _SendBackendRequest({'metric': metric, 'request': 'refresh_metric'})
-        _RefreshLocales()
+        _UpdateLocales()
 
 
 class UpdateMetricHandler(webapp.RequestHandler):
@@ -68,13 +71,21 @@ class UpdateMetricHandler(webapp.RequestHandler):
 
         # Pass the update request on to the worker pool.
         _SendBackendRequest({'metric': metric, 'request': 'update_metric'})
-        _RefreshLocales()
+        _UpdateLocales()
 
 
 def _FetchMetricNames():
-    names = ['a','b','c']
-    #todo: get metric names from CloudSQL
-    return names
+    client = cloud_sql_client.CloudSQLClient(
+        cloud_sql_backend.INSTANCE, cloud_sql_backend.DATABASE)
+    backend = cloud_sql_backend.CloudSQLBackend(client)
+
+    try:
+        metric_infos = backend.GetMetricInfo()
+    except backend_interface.LoadError as e:
+        logging.error(e)
+        return None
+
+    return metric_infos.keys()
 
 def _SendBackendRequest(params):
     if 'metric' in params:
@@ -86,9 +97,9 @@ def _SendBackendRequest(params):
 
     taskqueue.add(target='worker', url='/_ah/task', params=params)
 
-def _RefreshLocales():
+def _UpdateLocales():
     # Request regeneration of locale data.
-    _SendBackendRequest({'request': 'refresh_locales'})
+    _SendBackendRequest({'request': 'update_locales'})
 
 
 if __name__ == '__main__':

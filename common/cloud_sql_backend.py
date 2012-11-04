@@ -24,6 +24,8 @@ import logging
 from metrics import DetermineLocaleType
 import pprint
 
+INSTANCE = 'mlab-metrics:database'
+DATABASE = 'mlab_metrics'
 LOCALES_TABLE = '_locales'
 METADATA_TABLE = '_metadata'
 
