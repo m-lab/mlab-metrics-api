@@ -36,6 +36,8 @@ class RequestType:
 class Backend(object):
     def SetClientHTTP(self, http):
         pass
+    def ExistingDates(self):
+        pass
     def GetMetricInfo(self, metric_name):
         pass
     def SetMetricInfo(self, request_type, metric_name, metric_info):

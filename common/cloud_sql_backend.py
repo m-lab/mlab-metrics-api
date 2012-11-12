@@ -28,6 +28,7 @@ INSTANCE = 'mlab-metrics:database'
 DATABASE = 'mlab_metrics'
 LOCALES_TABLE = '_locales'
 METADATA_TABLE = '_metadata'
+SAMPLE_METRIC_TABLE = 'num_of_clients'  # Expect 'num_of_clients' metric exists.
 
 
 class CloudSQLBackend(backend.Backend):
@@ -39,6 +40,20 @@ class CloudSQLBackend(backend.Backend):
         """
         self._cloudsql = cloudsql
         super(CloudSQLBackend, self).__init__()
+
+    def ExistingDates(self):
+        """Retrieves a list of existing months.
+        """
+        query = ('SELECT DISTINCT date'
+                 '  FROM %s' % SAMPLE_METRIC_TABLE)
+
+        try:
+            dates = self._cloudsql.Query(query)
+        except cloud_sql_client.Error as e:
+            raise backend.LoadError('Could not load metric info for "%s" from'
+                                    ' CloudSQL: %s' % (metric_name, e))
+
+        return [d[0] for d in dates['data']]
 
     def GetMetricInfo(self, metric_name=None):
         """Retrieves metadata for the specified metric, from CloudSQL.
@@ -63,9 +78,9 @@ class CloudSQLBackend(backend.Backend):
 
         try:
             result = self._cloudsql.Query(query)
-        except big_query_client.Error as e:
+        except cloud_sql_client.Error as e:
             raise backend.LoadError('Could not load metric info for "%s" from'
-                                    ' BigQuery: %s' % (metric_name, e))
+                                    ' CloudSQL: %s' % (metric_name, e))
 
         if metric_name is None:
             # Create dict of info-dicts, indexed by metric name.

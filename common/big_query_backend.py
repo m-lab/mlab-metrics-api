@@ -19,15 +19,20 @@
 todo: Lots more text.
 """
 
+import datetime
+import logging
+import re
+
 import backend
 import big_query_client
-import logging
 from metrics import DetermineLocaleType
-import pprint
 
+PROJECT_ID = 'measurement-lab'
+DATASET = 'm_lab'
 LOCALES_TABLE = '_locales'
 METADATA_TABLE = '_metadata'
 
+_DATE_TABLES_RE = r'^([1-9][0-9]{3})_([0-9]{2})$'
 
 class BigQueryBackend(backend.Backend):
     def __init__(self, bigquery):
@@ -49,6 +54,20 @@ class BigQueryBackend(backend.Backend):
             http: The authorized client http.
         """
         self._bigquery.SetClientHTTP(http)
+
+    def ExistingDates(self):
+        """Retrieves a map of existing months and corresponding tables.
+        """
+        dates = {}
+
+        for table in self._bigquery.ListTables():
+            match = re.match(_DATE_TABLES_RE, table)
+            if match:
+                year = int(match.groups()[0])
+                month = int(match.groups()[1])
+                dates[datetime.date(year, month, 1)] = table
+
+        return dates
 
     def GetMetricInfo(self, metric_name=None):
         #todo: figure out how to query once for all metrics (it's not that much

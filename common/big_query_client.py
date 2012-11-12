@@ -106,6 +106,15 @@ class _BigQueryClient(object):
         self._previous_job_id = job_id
         return result
 
+    def ListTables(self):
+        """Retrieves a list of the current tables.
+        """
+        tables = self._service.tables()
+        reply = tables.list(projectId=self.project_id,
+                            datasetId=self.dataset).execute()
+
+        return [t['tableReference']['tableId'] for t in reply['tables']]
+
     def UpdateTable(self, table_name, fields, field_data):
         """Update a given table with the passed new 'field_data'.
 
