@@ -82,65 +82,63 @@ class TaskRequestHandler(webapp.RequestHandler):
 
 
 def _DeleteMetric(metric, cloudsql):
-    #todo
-    test_cycles = 3
-    while not runtime.is_shutting_down() and test_cycles > 0:
-        logging.debug('zzz in _DeleteMetric(%s)' % metric)
-        time.sleep(20)
-        test_cycles -= 1
+    logging.info('Deleting metric: %s' % metric)
+
+    if not runtime.is_shutting_down:
+        _DeleteMetricInfo(cloudsql, metric)
+        _DeleteMetricData(cloudsql, metric, date)
 
     if runtime.is_shutting_down():
-        logging.debug('Interrupted!  Shutting down.')
+        logging.info('Interrupted!  Shutting down.')
     else:
-        logging.debug('Work completed.')
+        logging.info('Work completed.')
 
 def _RefreshMetric(metric, bigquery, cloudsql):
-    #todo
-    bq_dates = bigquery.ExistingDates().keys()
+    bq_dates = bigquery.ExistingDates()
     cs_dates = cloudsql.ExistingDates()
     missing_cs_dates = set(bq_dates) - set(cs_dates)
 
-    logging.debug('BQ dates: %s' % sorted(bq_dates))
-    logging.debug('CS dates: %s' % sorted(cs_dates))
-    logging.debug('so I need to compute: %s' % sorted(missing_cs_dates))
+    logging.info('Refreshing metric %s for dates: %s'
+                 % (metric, sorted(missing_cs_dates)))
 
-    test_cycles = 1
-    while not runtime.is_shutting_down() and test_cycles > 0:
-        logging.debug('zzz in _RefreshMetric(%s)' % metric)
-        time.sleep(20)
-        test_cycles -= 1
+    for date in missing_cs_dates:
+        if not runtime.is_shutting_down:
+            _ComputeMetricData(bigquery, cloudsql, metric, date)
 
     if runtime.is_shutting_down():
-        logging.debug('Interrupted!  Shutting down.')
+        logging.info('Interrupted!  Shutting down.')
     else:
-        logging.debug('Work completed.')
+        logging.info('Work completed.')
 
 def _UpdateMetric(metric, bigquery, cloudsql):
-    #todo
-    test_cycles = 3
-    while not runtime.is_shutting_down() and test_cycles > 0:
-        logging.debug('zzz in _UpdateMetric(%s)' % metric)
-        time.sleep(20)
-        test_cycles -= 1
+    logging.info('Updating (regenerating) metric: %s' % metric)
+
+    for date in bigquery.ExistingDates():
+        if not runtime.is_shutting_down:
+            _DeleteMetricData(cloudsql, metric, date)
+            _ComputeMetricData(bigquery, cloudsql, metric, date)
 
     if runtime.is_shutting_down():
-        logging.debug('Interrupted!  Shutting down.')
+        logging.info('Interrupted!  Shutting down.')
     else:
-        logging.debug('Work completed.')
+        logging.info('Work completed.')
+
+def _DeleteMetricInfo(cloudsql, metric, date):
+    cloudsql.DeleteMetricInfo(metric)
+
+def _DeleteMetricData(cloudsql, metric, date=None):
+    if date is None:
+        cloudsql.DeleteMetricData(metric)
+    else:
+        cloudsql.DeleteMetricData(metric, (date.year, date.month))
+
+def _ComputeMetricData(bigquery, cloudsql, metric, date):
+    #todo
+    pass
 
 def _UpdateLocales(cloudsql):
     #todo
-    test_cycles = 3
-    while not runtime.is_shutting_down() and test_cycles > 0:
-        logging.debug('zzz in _UpdateLocales()')
-        time.sleep(20)
-        test_cycles -= 1
-
-    if runtime.is_shutting_down():
-        logging.debug('Interrupted!  Shutting down.')
-    else:
-        logging.debug('Work completed.')
-
+    pass
 
 if __name__ == '__main__':
     server.start(HANDLERS())

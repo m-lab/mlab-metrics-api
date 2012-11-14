@@ -55,6 +55,26 @@ class CloudSQLBackend(backend.Backend):
 
         return [d[0] for d in dates['data']]
 
+    def DeleteMetricInfo(self, metric_name):
+        """Deletes info for this metric.
+
+        Args:
+            metric_name (string): The name of the metric to be deleted.
+
+        Raises:
+            DeleteError: If the requested metric info could not be deleted.
+        """
+        query = ('DELETE'
+                 '  FROM %s'
+                 ' WHERE name="%s"' %
+                 (METADATA_TABLE, metric_name))
+
+        try:
+            result = self._cloudsql.Query(query)
+        except cloud_sql_client.Error as e:
+            raise backend.DeleteError('Could not delete metric info for "%s" from'
+                                      ' CloudSQL: %s' % (metric_name, e))
+
     def GetMetricInfo(self, metric_name=None):
         """Retrieves metadata for the specified metric, from CloudSQL.
 
@@ -119,6 +139,55 @@ class CloudSQLBackend(backend.Backend):
         else:
             raise backend.EditError('Unrecognized request type: %s' % request_type)
 
+    def DeleteMetricData(self, metric_name, date=None):
+        """Deletes data for this metric for the given 'date'.
+
+        Args:
+            metric_name (string): The name of the metric to be deleted.
+            date (tuple): Date for which metric data should be deleted, given as
+                a tuple consisting of ints (year, month).  If None, all data for
+                'metric_name' will be deleted.
+
+        Raises:
+            DeleteError: If the requested metric data could not be deleted.
+        """
+        if date is None:
+            query = ('DROP TABLE %s' % metric_name)
+        else:
+            query = ('DELETE'
+                     '  FROM %s'
+                     ' WHERE date="%s"' %
+                     (metric_name, '%4d-%02d-01' % date))
+
+        try:
+            result = self._cloudsql.Query(query)
+        except cloud_sql_client.Error as e:
+            raise backend.DeleteError('Could not delete metric data for "%s" from'
+                                      ' CloudSQL: %s' % (metric_name, e))
+
+    def CreateMetricDataTable(self, metric_name):
+        """Creates a backend table to store metric data.
+
+        Args:
+            metric_name (string): Metric name associated with this table data.
+
+        Raises:
+            LoadError: If the table could not be created.
+        """
+        query = ('CREATE'
+                 ' TABLE IF NOT EXISTS %s ('
+                 '    locale VARCHAR(64) NOT NULL,'
+                 '    date DATE NOT NULL,'
+                 '    value FLOAT NOT NULL'
+                 ' )'
+                 % metric_name)
+
+        try:
+            result = self._cloudsql.Query(query)
+        except cloud_sql_client.Error as e:
+            raise backend.LoadError('Could not create metric data table for'
+                                    ' "%s" in CloudSQL: %s' % (metric_name, e))
+
     def GetMetricData(self, metric_name, date, locale):
         """Retrieves data for this metric for the given 'date' and 'locale'.
 
@@ -137,6 +206,30 @@ class CloudSQLBackend(backend.Backend):
         """
         query = ('SELECT locale, value'
                  '  FROM %s'
+                 ' WHERE date="%s"' %
+                 (metric_name, '%4d-%02d-01' % date))
+
+        try:
+            result = self._cloudsql.Query(query)
+        except cloud_sql_client.Error as e:
+            raise backend.LoadError('Could not load metric data for "%s" from'
+                                    ' CloudSQL: %s' % (metric_name, e))
+        return result
+
+    def SetMetricData(self, metric_name, date, locale, value):
+        """Sets data for this metric for the given 'date' and 'locale'.
+
+        Args:
+            date (tuple): Date for which data should be loaded, given as a tuple
+                consisting of ints (year, month).
+            locale (string): Locale for which data should be loaded.
+            value (float): The metric value to be loaded.
+
+        Raises:
+            EditError: If the requested updates could not be applied.
+        """
+        query = ('INSERT'
+                 '  INTO %s'
                  ' WHERE date="%s"' %
                  (metric_name, '%4d-%02d-01' % date))
 

@@ -23,6 +23,10 @@ todo: Lots more text.
 class Error(Exception):
     pass
 
+class DeleteError(Error):
+    pass
+class EditError(Error):
+    pass
 class LoadError(Error):
     pass
 
@@ -38,10 +42,24 @@ class Backend(object):
         pass
     def ExistingDates(self):
         pass
-    def GetMetricInfo(self, metric_name):
+
+    def DeleteMetricInfo(self, metric_name):
+        pass
+    def GetMetricInfo(self, metric_name=None):
         pass
     def SetMetricInfo(self, request_type, metric_name, metric_info):
         pass
+
+    def CreateMetricDataTable(self, metric_name):
+        pass
+
+    def DeleteMetricData(self, metric_name, date=None):
+        pass
     def GetMetricData(self, metric_name, date, locale):
+        pass
+    def SetMetricData(self, metric_name, date, locale, value):
+        pass
+
+    def GetLocaleData(self, locale_type):
         pass
 

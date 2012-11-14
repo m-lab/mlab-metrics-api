@@ -33,6 +33,7 @@ LOCALES_TABLE = '_locales'
 METADATA_TABLE = '_metadata'
 
 _DATE_TABLES_RE = r'^([1-9][0-9]{3})_([0-9]{2})$'
+_DATE_TABLES_FMT = r'%4d_%2d'
 
 class BigQueryBackend(backend.Backend):
     def __init__(self, bigquery):
@@ -56,18 +57,21 @@ class BigQueryBackend(backend.Backend):
         self._bigquery.SetClientHTTP(http)
 
     def ExistingDates(self):
-        """Retrieves a map of existing months and corresponding tables.
+        """Retrieves a list of existing months.
         """
-        dates = {}
+        return self._DateTableMap().keys()
 
-        for table in self._bigquery.ListTables():
-            match = re.match(_DATE_TABLES_RE, table)
-            if match:
-                year = int(match.groups()[0])
-                month = int(match.groups()[1])
-                dates[datetime.date(year, month, 1)] = table
+    def DeleteMetricInfo(self, metric_name):
+        """Deletes info for this metric.
 
-        return dates
+        Args:
+            metric_name (string): The name of the metric to be deleted.
+
+        Raises:
+            DeleteError: If the requested metric info could not be deleted.
+        """
+        #todo
+        raise backend.DeleteError('Not yet implemented.')
 
     def GetMetricInfo(self, metric_name=None):
         #todo: figure out how to query once for all metrics (it's not that much
@@ -134,6 +138,13 @@ class BigQueryBackend(backend.Backend):
 
         self._bigquery.UpdateTable(METADATA_TABLE, fields, field_data)
 
+    def CreateMetricDataTable(self, metric_name):
+        """Creates a backend table to store metric data.
+
+        Noop for BigQuery.
+        """
+        pass
+
     def GetMetricData(self, metric_name, date, locale):
         """Retrieves data for this metric for the given 'date' and 'locale'.
 
@@ -162,6 +173,19 @@ class BigQueryBackend(backend.Backend):
                                     ' BigQuery: %s' % (metric_name, e))
         return result
 
+    def DeleteMetricData(self, metric_name, date):
+        """Deletes data for this metric for the given 'date'.
+
+        Args:
+            date (tuple): Date for which data should be deleted, given as a
+                tuple consisting of ints (year, month).
+
+        Raises:
+            DeleteError: If the requested metric data could not be deleted.
+        """
+        #todo
+        raise backend.DeleteError('Not yet implemented.')
+
     def GetLocaleData(self, locale_type):
         """Retrieves all locale data for the given 'locale_type'.
         
@@ -185,3 +209,17 @@ class BigQueryBackend(backend.Backend):
             raise backend.LoadError('Could not load locale info from BigQuery:'
                                     ' %s' % e)
         return result
+
+    def _DateTableMap(self):
+        """Retrieves a map of existing months and corresponding tables.
+        """
+        dates = {}
+
+        for table in self._bigquery.ListTables():
+            match = re.match(_DATE_TABLES_RE, table)
+            if match:
+                year = int(match.groups()[0])
+                month = int(match.groups()[1])
+                dates[datetime.date(year, month, 1)] = table
+
+        return dates
