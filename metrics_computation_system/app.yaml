@@ -24,6 +24,9 @@ libraries:
 - name: django
   version: "1.3"
 
+- name: numpy
+  version: "latest"
+
 handlers:
 - url: /oauth2callback
   script: oauth2client/appengine.py

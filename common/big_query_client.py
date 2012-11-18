@@ -28,11 +28,12 @@ import os
 import pprint
 import time
 
+from apiclient import errors
 from apiclient.discovery import build
 from google.appengine.api import memcache
 from oauth2client.appengine import AppAssertionCredentials
 
-MAX_RESULTS_PER_PACKET = 1000
+MAX_RESULTS_PER_PACKET = 2000
 
 
 class Error(Exception):
@@ -52,59 +53,72 @@ class _BigQueryClient(object):
     def __init__(self, project_id, dataset):
         self.project_id = project_id
         self.dataset = dataset
+        self._job_id = None
+        self._max_results_per_packet = MAX_RESULTS_PER_PACKET
         self._start_time = None
         self._total_timeout = None
-        self._max_results_per_packet = MAX_RESULTS_PER_PACKET
-
-        # BigQuery sometimes returns the previous query response.
-        self._previous_job_id = ''
 
         self._Connect()
 
-    def Query(self, query, timeout_msec=1000 * 60):
+    def IssueQuery(self, query):
+        # Issue the query.
+        logging.debug('Query: %s' % query)
+        request = {'configuration': {'query': {'query': query}}}
+        insertion = self._service.jobs().insert(
+            projectId=self.project_id, body=request).execute()
+        self._job_id = insertion['jobReference']['jobId']
+        return 0  #todo: Return a unique query id.
+
+    def HasMoreQueryResults(self):
+        return self._job_id is not None
+
+    def GetQueryResults(self, current_row, timeout_msec=1000 * 60 * 10,
+                        max_rows_to_retrieve=10000):
+        if self._job_id is None:
+            return None
+
         self._total_timeout = timedelta(milliseconds=timeout_msec)
         self._start_time = datetime.now()
 
-        # Issue the query.
-        logging.debug('Query: %s' % query)
-        jobs = self._service.jobs()
-        job_id = self._previous_job_id
+        # Get the response.
+        rows_left = max_rows_to_retrieve
+        response = self._GetQueryResponse(current_row, max_rows_to_retrieve)
 
-        while job_id == self._previous_job_id:
-            response = jobs.query(
-                body={'query': query,
-                      'timeoutMs': self.VerifyTimeMSecLeft(),
-                      'maxResults': self._max_results_per_packet},
-                projectId=self.project_id).execute()
-            job_id = response['jobReference']['jobId']
-            logging.debug(('Response[%s]: %s' % (job_id, response))[:1500])
+        if 'rows' in response:
+            current_row += len(response['rows'])
+            if max_rows_to_retrieve is not None:
+                rows_left -= len(response['rows'])
 
-        # Wait for the query to complete.
-        while not response['jobComplete']:
-            response = self._GetQueryResponse(jobs, job_id, 0)
-            logging.debug(('Response[%s]: %s' % (job_id, response))[:1500])
+        while ((max_rows_to_retrieve is None or rows_left > 0)
+               and current_row < int(response['totalRows'])):
+            more_data = self._GetQueryResponse(current_row, rows_left)
+
+            if 'schema' not in response or 'fields' not in response['schema']:
+                if 'schema' in more_data and 'fields' in more_data['schema']:
+                    response['schema'] = more_data['schema']
+            if 'rows' in more_data:
+                current_row += len(more_data['rows'])
+                if max_rows_to_retrieve is not None:
+                    rows_left -= len(more_data['rows'])
+                response['rows'].extend(more_data['rows'])
+
+        # Clear _job_id if all rows have been retrieved.
+        if current_row >= int(response['totalRows']):
+            self._job_id = None
 
         # Parse the response data into a more convenient dict, with members
         # 'fields' for row names and 'data' for row data.
-        if 'schema' not in response or response['totalRows'] == 0:
-            raise QueryError('Query produced no results: %s' % query)
+        if 'schema' not in response or int(response['totalRows']) == 0:
+            logging.error('Query produced no results!')
+            return (None, None)
 
         result = {'fields': [], 'data': []}
         for field in response['schema']['fields']:
             result['fields'].append(field['name'])
+        for row in response['rows']:
+            result['data'].append([field['v'] for field in row['f']])
 
-        current_row = 0
-        while 'rows' in response and current_row < response['totalRows']:
-            for row in response['rows']:
-                result['data'].append([field['v'] for field in row['f']])
-
-            current_row += len(response['rows'])
-            if current_row < response['totalRows']:
-                response = self._GetQueryResponse(jobs, job_id, current_row)
-                logging.debug(('Response[%s]: %s' % (job_id, response))[:1500])
-
-        self._previous_job_id = job_id
-        return result
+        return (current_row, result)
 
     def ListTables(self):
         """Retrieves a list of the current tables.
@@ -214,12 +228,35 @@ class _BigQueryClient(object):
         logging.debug('Finished updating table with status: %s' %
                       pprint.saferepr(status))
 
-    def _GetQueryResponse(self, jobs, job_id, start_index):
-        return jobs.getQueryResults(timeoutMs=self.VerifyTimeMSecLeft(),
-                                    projectId=self.project_id,
-                                    jobId=job_id,
-                                    maxResults=self._max_results_per_packet,
-                                    startIndex=start_index).execute()
+    def _GetQueryResponse(self, start_index, rows_to_retrieve, retries=2):
+        if rows_to_retrieve is None:
+            max_results = MAX_RESULTS_PER_PACKET
+        else:
+            max_results = min(MAX_RESULTS_PER_PACKET, rows_to_retrieve)
+
+        jobs = self._service.jobs()
+        data = {'status': {'state': 'RUNNING'}}
+
+        while 'status' in data and data['status']['state'] == 'RUNNING':
+            try:
+                data = jobs.getQueryResults(timeoutMs=self.VerifyTimeMSecLeft(),
+                                            projectId=self.project_id,
+                                            jobId=self._job_id,
+                                            maxResults=max_results,
+                                            startIndex=start_index).execute()
+            except errors.Error as e:
+                if retries > 0:
+                    logging.error('Query failed; attempting %d more times.'
+                                  ' Error: %s' % (retries, e))
+                    time.sleep(2)     # Sometimes there's an intermittent error,
+                    max_results /= 2  # or the response is too large to return.
+                    retries -= 1
+                    continue
+                else:
+                    raise
+            logging.debug(('Response[job_id=%s, start_index=%d]: %s'
+                           % (self._job_id, start_index, data))[:100])
+        return data
 
     def VerifyTimeMSecLeft(self):
         if self._start_time is None or self._total_timeout is None:
@@ -228,7 +265,7 @@ class _BigQueryClient(object):
         time_taken = datetime.now() - self._start_time
         if time_taken >= self._total_timeout:
             raise TimeoutError('Client timeout reached at %s msec.' %
-                               time_taken.total_seconds() * 1000)
+                               (time_taken.total_seconds() * 1000))
 
         return int((self._total_timeout - time_taken).total_seconds() * 1000)
 

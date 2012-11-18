@@ -29,6 +29,8 @@ class EditError(Error):
     pass
 class LoadError(Error):
     pass
+class QueryError(Error):
+    pass
 
 
 class RequestType:

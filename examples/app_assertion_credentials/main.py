@@ -29,8 +29,70 @@ from google.appengine.ext.webapp.util import run_wsgi_app
 from oauth2client.appengine import AppAssertionCredentials
 
 PROJECT_ID = 'measurement-lab'
-TEST_QUERY = ('SELECT name, units, short_desc, long_desc, query'
-              '  FROM metrics_api_server.metadata')
+TEST_QUERY = """
+SELECT
+web100_log_entry.connection_spec.remote_ip,
+web100_log_entry.connection_spec.local_ip,
+
+connection_spec.client_geolocation.country_code3 as country,
+connection_spec.client_geolocation.region as region,
+connection_spec.client_geolocation.city as city,
+
+MAX( web100_log_entry.snap.HCThruOctetsAcked /
+     ( web100_log_entry.snap.SndLimTimeRwin +
+       web100_log_entry.snap.SndLimTimeCwnd +
+       web100_log_entry.snap.SndLimTimeSnd
+     )
+   ) as value
+
+
+FROM [m_lab.2009_10]
+
+
+WHERE
+IS_EXPLICITLY_DEFINED(project)
+AND project = 0
+
+AND IS_EXPLICITLY_DEFINED(web100_log_entry.connection_spec.remote_ip)
+AND IS_EXPLICITLY_DEFINED(web100_log_entry.connection_spec.local_ip)
+
+AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.country_code3)
+AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.region)
+AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.city)
+
+AND IS_EXPLICITLY_DEFINED(connection_spec.data_direction)
+AND connection_spec.data_direction = 1
+
+AND IS_EXPLICITLY_DEFINED(web100_log_entry.is_last_entry)
+AND web100_log_entry.is_last_entry = True
+
+AND IS_EXPLICITLY_DEFINED(web100_log_entry.snap.HCThruOctetsAcked)
+AND web100_log_entry.snap.HCThruOctetsAcked >= 8192
+AND web100_log_entry.snap.HCThruOctetsAcked < 1000000000
+
+AND ( web100_log_entry.snap.SndLimTimeRwin +
+      web100_log_entry.snap.SndLimTimeCwnd +
+      web100_log_entry.snap.SndLimTimeSnd
+    ) >= 9000000
+AND ( web100_log_entry.snap.SndLimTimeRwin +
+      web100_log_entry.snap.SndLimTimeCwnd +
+      web100_log_entry.snap.SndLimTimeSnd
+    ) < 3600000000
+
+AND IS_EXPLICITLY_DEFINED(web100_log_entry.snap.CongSignals)
+AND web100_log_entry.snap.CongSignals > 0
+
+
+GROUP BY
+web100_log_entry.connection_spec.remote_ip,
+web100_log_entry.connection_spec.local_ip,
+country,
+region,
+city
+
+LIMIT 800
+"""
+TEST_QUERY = ' '.join(TEST_QUERY.split('\n'))
 
 
 def main():
@@ -61,27 +123,44 @@ def TestQuery():
 
     # Run a query against the BigQuery database.
     logging.debug('Query: %s' % TEST_QUERY)
-    results = job_runner.query(
-        projectId=PROJECT_ID, body={'query': TEST_QUERY}).execute()
-    logging.debug('Result: %s' % results)
+    jobdata = {'configuration': {'query': {'query': TEST_QUERY}}}
+    insert = job_runner.insert(projectId=PROJECT_ID,
+                               body=jobdata).execute()
+    logging.debug('Response: %s' % insert)
+
+    currentRow = 0
+    queryReply = job_runner.getQueryResults(
+        projectId=PROJECT_ID,
+        jobId=insert['jobReference']['jobId'],
+        startIndex=currentRow).execute()
+    results = queryReply
+
+    while 'rows' in queryReply and currentRow < queryReply['totalRows'] :
+        currentRow += len(queryReply['rows'])
+        queryReply = job_runner.getQueryResults(
+            projectId=PROJECT_ID,
+            jobId=queryReply['jobReference']['jobId'],
+            startIndex=currentRow).execute()
+        if 'schema' not in results or 'fields' not in results['schema']:
+            if 'schema' in queryReply and 'fields' in queryReply['schema']:
+                results['schema'] = queryReply['schema']
+        if 'rows' in queryReply:
+            results['rows'].extend(queryReply['rows'])
 
     # Format the results as an HTML page.
     body = '<h2>The Query</h2><pre>%s</pre>\n<hr>\n' % TEST_QUERY
 
-    if not results[u'jobComplete']:
-        body += '<em>Query failed!</em>'
-    else:
-        tablerows = '<tr>'
-        for field in results[u'schema'][u'fields']:
-            tablerows += '<th>%s</th>' % field[u'name']
+    tablerows = '<tr>'
+    for field in results['schema']['fields']:
+        tablerows += '<th>%s</th>' % field['name']
 
-        for row in results[u'rows']:
-            tablerows += '</tr><tr>'
-            for value in row[u'f']:
-                tablerows += '<td>%s</td>' % value[u'v']
-        tablerows += '</tr>'
+    for row in results['rows']:
+        tablerows += '</tr><tr>'
+        for value in row['f']:
+            tablerows += '<td>%s</td>' % value['v']
+    tablerows += '</tr>'
 
-        body += '<table border=1>\n%s\n</table>\n' % tablerows
+    body += '<table border=1>\n%s\n</table>\n' % tablerows
 
     return '<!DOCTYPE html><html><body>%s</body></html>' % body
 

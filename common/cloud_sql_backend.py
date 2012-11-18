@@ -47,12 +47,7 @@ class CloudSQLBackend(backend.Backend):
         query = ('SELECT DISTINCT date'
                  '  FROM %s' % SAMPLE_METRIC_TABLE)
 
-        try:
-            dates = self._cloudsql.Query(query)
-        except cloud_sql_client.Error as e:
-            raise backend.LoadError('Could not load metric info for "%s" from'
-                                    ' CloudSQL: %s' % (metric_name, e))
-
+        dates = self._cloudsql.Query(query)
         return [d[0] for d in dates['data']]
 
     def DeleteMetricInfo(self, metric_name):
@@ -60,20 +55,12 @@ class CloudSQLBackend(backend.Backend):
 
         Args:
             metric_name (string): The name of the metric to be deleted.
-
-        Raises:
-            DeleteError: If the requested metric info could not be deleted.
         """
         query = ('DELETE'
                  '  FROM %s'
                  ' WHERE name="%s"' %
                  (METADATA_TABLE, metric_name))
-
-        try:
-            result = self._cloudsql.Query(query)
-        except cloud_sql_client.Error as e:
-            raise backend.DeleteError('Could not delete metric info for "%s" from'
-                                      ' CloudSQL: %s' % (metric_name, e))
+        self._cloudsql.Query(query)
 
     def GetMetricInfo(self, metric_name=None):
         """Retrieves metadata for the specified metric, from CloudSQL.
@@ -81,10 +68,6 @@ class CloudSQLBackend(backend.Backend):
         Args:
             metric_name (string): Name of the metric to query.  If None or not
                 specified, retrieves info all metric.
-
-        Raises:
-            LoadError: If there was an error getting the metric info from
-                CloudSQL.
 
         Returns:
             (dict): Collection of data for the requested metric, keyed by the
@@ -96,11 +79,7 @@ class CloudSQLBackend(backend.Backend):
         if metric_name is not None:
             query += (' WHERE name="%s"' % metric_name)
 
-        try:
-            result = self._cloudsql.Query(query)
-        except cloud_sql_client.Error as e:
-            raise backend.LoadError('Could not load metric info for "%s" from'
-                                    ' CloudSQL: %s' % (metric_name, e))
+        result = self._cloudsql.Query(query)
 
         if metric_name is None:
             # Create dict of info-dicts, indexed by metric name.
@@ -147,9 +126,6 @@ class CloudSQLBackend(backend.Backend):
             date (tuple): Date for which metric data should be deleted, given as
                 a tuple consisting of ints (year, month).  If None, all data for
                 'metric_name' will be deleted.
-
-        Raises:
-            DeleteError: If the requested metric data could not be deleted.
         """
         if date is None:
             query = ('DROP TABLE %s' % metric_name)
@@ -159,20 +135,13 @@ class CloudSQLBackend(backend.Backend):
                      ' WHERE date="%s"' %
                      (metric_name, '%4d-%02d-01' % date))
 
-        try:
-            result = self._cloudsql.Query(query)
-        except cloud_sql_client.Error as e:
-            raise backend.DeleteError('Could not delete metric data for "%s" from'
-                                      ' CloudSQL: %s' % (metric_name, e))
+        self._cloudsql.Query(query)
 
     def CreateMetricDataTable(self, metric_name):
         """Creates a backend table to store metric data.
 
         Args:
             metric_name (string): Metric name associated with this table data.
-
-        Raises:
-            LoadError: If the table could not be created.
         """
         query = ('CREATE'
                  ' TABLE IF NOT EXISTS %s ('
@@ -181,12 +150,7 @@ class CloudSQLBackend(backend.Backend):
                  '    value FLOAT NOT NULL'
                  ' )'
                  % metric_name)
-
-        try:
-            result = self._cloudsql.Query(query)
-        except cloud_sql_client.Error as e:
-            raise backend.LoadError('Could not create metric data table for'
-                                    ' "%s" in CloudSQL: %s' % (metric_name, e))
+        self._cloudsql.Query(query)
 
     def GetMetricData(self, metric_name, date, locale):
         """Retrieves data for this metric for the given 'date' and 'locale'.
@@ -196,11 +160,6 @@ class CloudSQLBackend(backend.Backend):
                 consisting of ints (year, month).
             locale (string): Locale for which data should be loaded.
 
-        Raises:
-            LoadError: If the requested metric data could not be read.  This may
-                happen if, for example, a bogus locale was requested, or a bogus
-                date.
-
         Returns:
             (dict): Result data from the query, with keys "locale" and "value".
         """
@@ -208,13 +167,7 @@ class CloudSQLBackend(backend.Backend):
                  '  FROM %s'
                  ' WHERE date="%s"' %
                  (metric_name, '%4d-%02d-01' % date))
-
-        try:
-            result = self._cloudsql.Query(query)
-        except cloud_sql_client.Error as e:
-            raise backend.LoadError('Could not load metric data for "%s" from'
-                                    ' CloudSQL: %s' % (metric_name, e))
-        return result
+        return self._cloudsql.Query(query)
 
     def SetMetricData(self, metric_name, date, locale, value):
         """Sets data for this metric for the given 'date' and 'locale'.
@@ -224,21 +177,20 @@ class CloudSQLBackend(backend.Backend):
                 consisting of ints (year, month).
             locale (string): Locale for which data should be loaded.
             value (float): The metric value to be loaded.
-
-        Raises:
-            EditError: If the requested updates could not be applied.
         """
+        date_fmt = '%4d-%02d-01' % date
+
+        query = ('DELETE'
+                 '  FROM %s'
+                 ' WHERE locale="%s" AND date="%s"' %
+                 (metric_name, locale, date_fmt))
+        self._cloudsql.Query(query)
+
         query = ('INSERT'
                  '  INTO %s'
-                 ' WHERE date="%s"' %
-                 (metric_name, '%4d-%02d-01' % date))
-
-        try:
-            result = self._cloudsql.Query(query)
-        except cloud_sql_client.Error as e:
-            raise backend.LoadError('Could not load metric data for "%s" from'
-                                    ' CloudSQL: %s' % (metric_name, e))
-        return result
+                 '   SET locale="%s",date="%s",value=%f' %
+                 (metric_name, locale, date_fmt, value))
+        self._cloudsql.Query(query)
 
     def GetLocaleData(self, locale_type):
         """Retrieves all locale data for the given 'locale_type'.
@@ -255,10 +207,4 @@ class CloudSQLBackend(backend.Backend):
                  '  FROM %s'
                  ' WHERE type="%s"' %
                  (LOCALES_TABLE, locale_type))
-
-        try:
-            result = self._cloudsql.Query(query)
-        except cloud_sql_client.Error as e:
-            raise backend.LoadError('Could not load locale info from CloudSQL:'
-                                    ' %s' % e)
-        return result
+        return self._cloudsql.Query(query)

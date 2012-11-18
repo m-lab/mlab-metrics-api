@@ -31,16 +31,6 @@ import time
 from google.appengine.api import rdbms
 
 
-class Error(Exception):
-    pass
-
-class ConnectionError(Error):
-    pass
-
-class QueryError(Error):
-    pass
-
-
 class CloudSQLClient(object):
     def __init__(self, instance, database):
         """Constructor.
@@ -56,7 +46,7 @@ class CloudSQLClient(object):
         # Issue the query.
         conn = rdbms.connect(instance=self._instance, database=self._database)
         cursor = conn.cursor()
-        logging.debug('Issuing query: %s' % query)
+        #logging.debug('Issuing query: %s' % query)
         cursor.execute(query)
 
         # Parse the response data into a more convenient dict, with members

@@ -32,8 +32,8 @@ DATASET = 'm_lab'
 LOCALES_TABLE = '_locales'
 METADATA_TABLE = '_metadata'
 
-_DATE_TABLES_RE = r'^([1-9][0-9]{3})_([0-9]{2})$'
-_DATE_TABLES_FMT = r'%4d_%2d'
+DATE_TABLES_RE = r'^([1-9][0-9]{3})_([0-9]{2})$'
+DATE_TABLES_FMT = r'%04d_%02d'
 
 class BigQueryBackend(backend.Backend):
     def __init__(self, bigquery):
@@ -55,6 +55,74 @@ class BigQueryBackend(backend.Backend):
             http: The authorized client http.
         """
         self._bigquery.SetClientHTTP(http)
+
+    def RawQuery(self, query, max_rows_to_retrieve=10000):
+        """Runs the specified query against the BigQuery.
+
+        Args:
+            query (string): Query to send to the BigQuery.
+            max_rows_to_retrieve (int): Maximum number of rows to get from the
+              BigQuery respose to 'query'.  If 'None' all rows are retrieved.
+
+        Raises:
+            QueryError: If there was an error/failure issuing the query.
+
+        Returns:
+            tuple: A tuple of (query_id, data) where 'query_id' is a unique
+            query id that can be used to retrieve even more data via the method
+            ContinueRawQuery.  If no more data is present 'query_id' will be
+            None.  'data' is organized as a dict with the response row data from
+            BigQuery, with two sections, 'fields' as a list of the columns and
+            'data' as a collection of lists, one list for each row.  For
+            example:
+              { 'fields': ['a', 'b', 'c'], 'data': [[1, 2, 3], [4, 5, 6]] }
+        """
+        query_id = self._bigquery.IssueQuery(query)
+        return self.ContinueRawQuery(
+            query_id, max_rows_to_retrieve=max_rows_to_retrieve)
+
+    def ContinueRawQuery(self, query_id, max_rows_to_retrieve=10000):
+        """Continues a previously started RawQuery, identified by 'query_id'.
+
+        If there are more results pending a RawQuery, RawQuery will return a
+        unique 'query_id' along with the results.  Subsequent data can be
+        fetched using this 'query_id' via ContinueRawQuery.  If still more
+        results are present, ContinueRawQuery will also return 'query_id'.  If
+        no further results are available 'query_id' will be None.
+
+        Args:
+            query_id (int): Unique query id identifying which query to continue.
+            max_rows_to_retrieve (int): Maximum number of rows to get from the
+              in-flight 'query'.  If 'None' all rows are retrieved.
+
+        Raises:
+            QueryError: If there was an error/failure retrieving results.
+
+        Returns:
+            tuple: A tuple of (query_id, data) where 'query_id' is a unique
+            query id that can be used to retrieve even more data.  If no more
+            data is present 'query_id' will be None.  'data' is organized as
+            a dict with the response row data from BigQuery, with two sections,
+            'fields' as a list of the columns and 'data' as a collection of
+            lists, one list for each row.  For example:
+              { 'fields': ['a', 'b', 'c'], 'data': [[1, 2, 3], [4, 5, 6]] }
+        """
+        if query_id is None:
+            return (None, None)
+
+        try:
+            (query_id, result) = self._bigquery.GetQueryResults(
+                query_id, max_rows_to_retrieve=max_rows_to_retrieve)
+        except big_query_client.Error as e:
+            raise backend.QueryError(e)
+
+        #todo: Allow concurrency by actually using the query's job id.  This
+        #      will require changes in big_query_client to fields like _job_id,
+        #      _start_time, and _total_timeout (and logic thereof).
+        if not self._bigquery.HasMoreQueryResults():
+            query_id = None
+
+        return (query_id, result)
 
     def ExistingDates(self):
         """Retrieves a list of existing months.
@@ -216,7 +284,7 @@ class BigQueryBackend(backend.Backend):
         dates = {}
 
         for table in self._bigquery.ListTables():
-            match = re.match(_DATE_TABLES_RE, table)
+            match = re.match(DATE_TABLES_RE, table)
             if match:
                 year = int(match.groups()[0])
                 month = int(match.groups()[1])
