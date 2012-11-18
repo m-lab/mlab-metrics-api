@@ -148,6 +148,7 @@ def _RefreshMetric(metric, bigquery, cloudsql):
     logging.info('Refreshing metric %s for dates: %s'
                  % (metric, sorted(missing_cs_dates)))
 
+    cloudsql.CreateMetricDataTable(metric)
     for date in sorted(missing_cs_dates):
         if not runtime.is_shutting_down():
             _ComputeMetricData(bigquery, cloudsql, query, metric, date)
@@ -162,6 +163,7 @@ def _UpdateMetric(metric, bigquery, cloudsql):
 
     logging.info('Updating (regenerating) metric: %s' % metric)
 
+    cloudsql.CreateMetricDataTable(metric)
     for date in sorted(bigquery.ExistingDates()):
         if not runtime.is_shutting_down():
             _DeleteMetricData(cloudsql, metric, date)
