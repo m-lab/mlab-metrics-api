@@ -228,7 +228,7 @@ class _BigQueryClient(object):
         logging.debug('Finished updating table with status: %s' %
                       pprint.saferepr(status))
 
-    def _GetQueryResponse(self, start_index, rows_to_retrieve, retries=2):
+    def _GetQueryResponse(self, start_index, rows_to_retrieve, retries=4):
         if rows_to_retrieve is None:
             max_results = MAX_RESULTS_PER_PACKET
         else:
@@ -255,7 +255,7 @@ class _BigQueryClient(object):
                 else:
                     raise
             logging.debug(('Response[job_id=%s, start_index=%d]: %s'
-                           % (self._job_id, start_index, data))[:100])
+                           % (self._job_id, start_index, data))[:300])
         return data
 
     def VerifyTimeMSecLeft(self):

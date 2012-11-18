@@ -33,27 +33,17 @@ import server
 _MIN_ENTRIES_THRESHOLD = 100
 _MAX_RESULTS_PER_CYCLE = 300000
 
-TEST_QUERY = """
-SELECT
-web100_log_entry.connection_spec.remote_ip,
-web100_log_entry.connection_spec.local_ip,
+_STANDARD_QUERY_PARAMS = {
+    'select': """
+web100_log_entry.connection_spec.remote_ip as client_ip,
+web100_log_entry.connection_spec.local_ip as server_ip,
 
 connection_spec.client_geolocation.country_code3 as country,
 connection_spec.client_geolocation.region as region,
-connection_spec.client_geolocation.city as city,
-
-MAX( web100_log_entry.snap.HCThruOctetsAcked /
-     ( web100_log_entry.snap.SndLimTimeRwin +
-       web100_log_entry.snap.SndLimTimeCwnd +
-       web100_log_entry.snap.SndLimTimeSnd
-     )
-   ) as value
-
-
-FROM [%(table_name)s]
-
-
-WHERE
+connection_spec.client_geolocation.city as city
+""",
+    'from': """[%(table_name)s]""",
+    'where': """
 IS_EXPLICITLY_DEFINED(project)
 AND project = 0
 
@@ -70,32 +60,18 @@ AND connection_spec.data_direction = 1
 AND IS_EXPLICITLY_DEFINED(web100_log_entry.is_last_entry)
 AND web100_log_entry.is_last_entry = True
 
-AND IS_EXPLICITLY_DEFINED(web100_log_entry.snap.HCThruOctetsAcked)
-AND web100_log_entry.snap.HCThruOctetsAcked >= 8192
-AND web100_log_entry.snap.HCThruOctetsAcked < 1000000000
-
-AND ( web100_log_entry.snap.SndLimTimeRwin +
-      web100_log_entry.snap.SndLimTimeCwnd +
-      web100_log_entry.snap.SndLimTimeSnd
-    ) >= 9000000
-AND ( web100_log_entry.snap.SndLimTimeRwin +
-      web100_log_entry.snap.SndLimTimeCwnd +
-      web100_log_entry.snap.SndLimTimeSnd
-    ) < 3600000000
-
 AND IS_EXPLICITLY_DEFINED(web100_log_entry.snap.CongSignals)
 AND web100_log_entry.snap.CongSignals > 0
 
-
-GROUP BY
-
-web100_log_entry.connection_spec.remote_ip,
-web100_log_entry.connection_spec.local_ip,
+AND IS_EXPLICITLY_DEFINED(web100_log_entry.log_time)
+""",
+    'group_by': """
+client_ip,
+server_ip,
 country,
 region,
 city
-"""
-TEST_INSERTION = {'metric': 'rtt_min', 'date': (2010, 1), 'locale': 'dylan'}
+""" }
 
 
 def HANDLERS():
@@ -174,8 +150,7 @@ def _RefreshMetric(metric, bigquery, cloudsql):
 
     for date in sorted(missing_cs_dates):
         if not runtime.is_shutting_down():
-            #_ComputeMetricData(bigquery, cloudsql, query, metric, date)
-            _ComputeMetricData(bigquery, cloudsql, TEST_QUERY, metric, date)
+            _ComputeMetricData(bigquery, cloudsql, query, metric, date)
 
     if runtime.is_shutting_down():
         logging.info('Interrupted!  Shutting down.')
@@ -215,12 +190,23 @@ def _ComputeMetricData(bigquery, cloudsql, query, metric, date):
     logging.info('START computing metric data for "%s" at %4d-%02d.'
                  % (metric, date.year, date.month))
 
+    missing_params = []
+    for param in _STANDARD_QUERY_PARAMS:
+        if param not in query:
+            missing_params.append(param)
+
+    if len(missing_params):
+        logging.error('ABORTED computing metric data for "%s" at %4d-%02d.'
+                      ' Query string missing parameters: %s' % missing_params)
+        return
+
     # Insert 'date' into the query.
     date_tup = (date.year, date.month)
     table = '%s.%s' % (big_query_backend.DATASET,
                        big_query_backend.DATE_TABLES_FMT % date_tup)
 
     try:
+        query = query % _STANDARD_QUERY_PARAMS
         query = query % {'table_name': table}
     except KeyError:
         raise KeyError('Metric "%s" query doesn\'t contain "table_name" key for'
@@ -296,9 +282,7 @@ def _ComputeMetricData(bigquery, cloudsql, query, metric, date):
                 logging.debug('Example locale "%s" has median %f from data: %s'
                               % (locale, median, metric_values[locale_type][locale]))
                 print_once = False
-            #cloudsql.SetMetricData(metric, date_tup, locale, median)
-            cloudsql.SetMetricData(TEST_INSERTION['metric'], TEST_INSERTION['date'],
-                                   TEST_INSERTION['locale'], median)
+            cloudsql.SetMetricData(metric, date_tup, locale, median)
 
     logging.info('FINISHED computing metric data for "%s" at %4d-%02d.'
                  % (metric, date.year, date.month))
