@@ -41,11 +41,11 @@ class CloudSQLBackend(backend.Backend):
         self._cloudsql = cloudsql
         super(CloudSQLBackend, self).__init__()
 
-    def ExistingDates(self):
+    def ExistingDates(self, metric_name=SAMPLE_METRIC_TABLE):
         """Retrieves a list of existing months.
         """
         query = ('SELECT DISTINCT date'
-                 '  FROM %s' % SAMPLE_METRIC_TABLE)
+                 '  FROM %s' % metric_name)
 
         dates = self._cloudsql.Query(query)
         return [d[0] for d in dates['data']]

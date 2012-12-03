@@ -32,6 +32,10 @@ import server
 
 _MIN_ENTRIES_THRESHOLD = 100
 _MAX_RESULTS_PER_CYCLE = 300000
+_COUNTRY_SPLITS = (
+    'AND connection_spec.client_geolocation.country_code3 < "N"',
+    'AND connection_spec.client_geolocation.country_code3 >= "N"',
+    )
 
 _STANDARD_QUERY_PARAMS = {
     'select': """
@@ -53,6 +57,7 @@ AND IS_EXPLICITLY_DEFINED(web100_log_entry.connection_spec.local_ip)
 AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.country_code3)
 AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.region)
 AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.city)
+%(country_split)s
 
 AND IS_EXPLICITLY_DEFINED(connection_spec.data_direction)
 AND connection_spec.data_direction = 1
@@ -142,7 +147,7 @@ def _DeleteMetric(metric, cloudsql):
 def _RefreshMetric(metric, bigquery, cloudsql):
     query = cloudsql.GetMetricInfo(metric)['query']
     bq_dates = bigquery.ExistingDates()
-    cs_dates = cloudsql.ExistingDates()
+    cs_dates = cloudsql.ExistingDates(metric_name=metric)
     missing_cs_dates = set(bq_dates) - set(cs_dates)
 
     logging.info('Refreshing metric %s for dates: %s'
@@ -202,17 +207,17 @@ def _ComputeMetricData(bigquery, cloudsql, query, metric, date):
                       ' Query string missing parameters: %s' % missing_params)
         return
 
-    # Insert 'date' into the query.
+    # Insert "standard" parameters into the query.
     date_tup = (date.year, date.month)
     table = '%s.%s' % (big_query_backend.DATASET,
                        big_query_backend.DATE_TABLES_FMT % date_tup)
 
-    try:
-        query = query % _STANDARD_QUERY_PARAMS
-        query = query % {'table_name': table}
-    except KeyError:
-        raise KeyError('Metric "%s" query doesn\'t contain "table_name" key for'
-                       ' date specification:' % (metric, query))
+    query = query % _STANDARD_QUERY_PARAMS
+    queries = []
+
+    for split in _COUNTRY_SPLITS:
+        final_subs = {'table_name': table, 'country_split': split}
+        queries.append(query % final_subs)
 
     # Parse query results from BigQuery into lists based on locale.
     metric_values = {'city': defaultdict(list),
@@ -220,20 +225,17 @@ def _ComputeMetricData(bigquery, cloudsql, query, metric, date):
                      'country': defaultdict(list),
                      'world': {'world': []}}
 
-    (query_id, rows) = bigquery.RawQuery(
-        query, max_rows_to_retrieve=_MAX_RESULTS_PER_CYCLE)
+    total_rows = 0
+    results = []
+    for q in queries:
+        results.append(bigquery.RawQuery(q))
+        results[-1].max_rows_to_bucket = _MAX_RESULTS_PER_CYCLE
 
-    if rows is None:
-        logging.info('ABORTED computing metric data for "%s" at %4d-%02d.'
-                     ' Query produced no results.'
-                     % (metric, date.year, date.month))
-        return
+    for result_set in results:
+        for row in result_set.Rows():
+            total_rows += 1
 
-    while rows is not None and 'data' in rows:
-        logging.info('Got %d rows from BigQuery.' % len(rows['data']))
-
-        for row in rows['data']:
-            row_d = dict(zip(rows['fields'], row))
+            row_d = dict(zip(result_set.ColumnNames(), row))
             row_d['city'] = base64.b32encode(row_d['city'].encode('utf-8'))
             row_d['value'] = float(row_d['value'])
 
@@ -246,8 +248,12 @@ def _ComputeMetricData(bigquery, cloudsql, query, metric, date):
             metric_values['country'][country].append(row_d['value'])
             metric_values['world']['world'].append(row_d['value'])
 
-        (query_id, rows) = bigquery.ContinueRawQuery(
-            query_id, max_rows_to_retrieve=_MAX_RESULTS_PER_CYCLE)
+    if total_rows == 0:
+        logging.info('ABORTED computing metric data for "%s" at %4d-%02d.'
+                     ' Query produced no results.'
+                     % (metric, date.year, date.month))
+        return
+    logging.info('Got %d rows from BigQuery.' % total_rows)
 
     # Remove locales that don't meet the minimum threshold.
     skipped_locales = {}

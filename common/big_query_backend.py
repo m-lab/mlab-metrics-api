@@ -35,6 +35,57 @@ METADATA_TABLE = '_metadata'
 DATE_TABLES_RE = r'^([1-9][0-9]{3})_([0-9]{2})$'
 DATE_TABLES_FMT = r'%04d_%02d'
 
+class QueryResults():
+    def __init__(self, bigquery, query, max_rows_to_bucket=10000):
+        self.max_rows_to_bucket = max_rows_to_bucket
+
+        self._bigquery = bigquery
+        self._columns = None
+        self._row_data = None
+        self._job_id = self._bigquery.IssueQuery(query)
+
+    def ColumnNames(self):
+        self._FillDataBucket()
+        return self._columns
+
+    def Rows(self):
+        while self._HaveMoreRowData():
+            self._FillDataBucket()
+
+            if self._row_data is None:
+                raise StopIteration
+            for row in self._row_data:
+                yield row
+            self._row_data = None
+
+    def _DataBucketHasData(self):
+        return self._row_data is not None and len(self._row_data)
+
+    def _HaveMoreRowData(self):
+        return (self._DataBucketHasData()
+                or self._bigquery.HasMoreQueryResults(self._job_id))
+
+    def _FillDataBucket(self):
+        if (self._DataBucketHasData()
+            or not self._bigquery.HasMoreQueryResults(self._job_id)):
+            return
+
+        try:
+            result = self._bigquery.GetQueryResults(
+                self._job_id, max_rows_to_retrieve=self.max_rows_to_bucket)
+        except big_query_client.Error as e:
+            raise backend.QueryError(e)
+
+        if result is None:
+            self._columns = None
+            self._row_data = None
+
+        else:
+            if 'fields' in result:
+                self._columns = result['fields']
+            if 'data' in result:
+                self._row_data = result['data']
+
 class BigQueryBackend(backend.Backend):
     def __init__(self, bigquery):
         """Constructor.
@@ -43,6 +94,8 @@ class BigQueryBackend(backend.Backend):
             bigquery (object): BigQuery client instance.
         """
         self._bigquery = bigquery
+        self._next_query_id = 0
+        self._queries = {}
         super(BigQueryBackend, self).__init__()
 
     def SetClientHTTP(self, http):
@@ -56,13 +109,11 @@ class BigQueryBackend(backend.Backend):
         """
         self._bigquery.SetClientHTTP(http)
 
-    def RawQuery(self, query, max_rows_to_retrieve=10000):
+    def RawQuery(self, query):
         """Runs the specified query against the BigQuery.
 
         Args:
             query (string): Query to send to the BigQuery.
-            max_rows_to_retrieve (int): Maximum number of rows to get from the
-              BigQuery respose to 'query'.  If 'None' all rows are retrieved.
 
         Raises:
             QueryError: If there was an error/failure issuing the query.
@@ -77,52 +128,7 @@ class BigQueryBackend(backend.Backend):
             example:
               { 'fields': ['a', 'b', 'c'], 'data': [[1, 2, 3], [4, 5, 6]] }
         """
-        query_id = self._bigquery.IssueQuery(query)
-        return self.ContinueRawQuery(
-            query_id, max_rows_to_retrieve=max_rows_to_retrieve)
-
-    def ContinueRawQuery(self, query_id, max_rows_to_retrieve=10000):
-        """Continues a previously started RawQuery, identified by 'query_id'.
-
-        If there are more results pending a RawQuery, RawQuery will return a
-        unique 'query_id' along with the results.  Subsequent data can be
-        fetched using this 'query_id' via ContinueRawQuery.  If still more
-        results are present, ContinueRawQuery will also return 'query_id'.  If
-        no further results are available 'query_id' will be None.
-
-        Args:
-            query_id (int): Unique query id identifying which query to continue.
-            max_rows_to_retrieve (int): Maximum number of rows to get from the
-              in-flight 'query'.  If 'None' all rows are retrieved.
-
-        Raises:
-            QueryError: If there was an error/failure retrieving results.
-
-        Returns:
-            tuple: A tuple of (query_id, data) where 'query_id' is a unique
-            query id that can be used to retrieve even more data.  If no more
-            data is present 'query_id' will be None.  'data' is organized as
-            a dict with the response row data from BigQuery, with two sections,
-            'fields' as a list of the columns and 'data' as a collection of
-            lists, one list for each row.  For example:
-              { 'fields': ['a', 'b', 'c'], 'data': [[1, 2, 3], [4, 5, 6]] }
-        """
-        if query_id is None:
-            return (None, None)
-
-        try:
-            (query_id, result) = self._bigquery.GetQueryResults(
-                query_id, max_rows_to_retrieve=max_rows_to_retrieve)
-        except big_query_client.Error as e:
-            raise backend.QueryError(e)
-
-        #todo: Allow concurrency by actually using the query's job id.  This
-        #      will require changes in big_query_client to fields like _job_id,
-        #      _start_time, and _total_timeout (and logic thereof).
-        if not self._bigquery.HasMoreQueryResults():
-            query_id = None
-
-        return (query_id, result)
+        return QueryResults(self._bigquery, query)
 
     def ExistingDates(self):
         """Retrieves a list of existing months.

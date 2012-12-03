@@ -53,10 +53,13 @@ class _BigQueryClient(object):
     def __init__(self, project_id, dataset):
         self.project_id = project_id
         self.dataset = dataset
-        self._job_id = None
         self._max_results_per_packet = MAX_RESULTS_PER_PACKET
-        self._start_time = None
-        self._total_timeout = None
+
+        # Data members keyed by BigQuery job ID.
+        self._current_row = {}
+        self._has_more_data = {}
+        self._start_time = {}
+        self._total_timeout = {}
 
         self._Connect()
 
@@ -66,51 +69,57 @@ class _BigQueryClient(object):
         request = {'configuration': {'query': {'query': query}}}
         insertion = self._service.jobs().insert(
             projectId=self.project_id, body=request).execute()
-        self._job_id = insertion['jobReference']['jobId']
-        return 0  #todo: Return a unique query id.
 
-    def HasMoreQueryResults(self):
-        return self._job_id is not None
+        job_id = insertion['jobReference']['jobId']
+        self._current_row[job_id] = 0
+        self._has_more_data[job_id] = True
+        return job_id
 
-    def GetQueryResults(self, current_row, timeout_msec=1000 * 60 * 10,
+    def HasMoreQueryResults(self, job_id):
+        if job_id not in self._has_more_data:
+            return False
+        return self._has_more_data[job_id]
+
+    def GetQueryResults(self, job_id, timeout_msec=1000 * 60 * 10,
                         max_rows_to_retrieve=10000):
-        if self._job_id is None:
+        if not self.HasMoreQueryResults(job_id):
             return None
 
-        self._total_timeout = timedelta(milliseconds=timeout_msec)
-        self._start_time = datetime.now()
+        self._total_timeout[job_id] = timedelta(milliseconds=timeout_msec)
+        self._start_time[job_id] = datetime.now()
 
         # Get the response.
         rows_left = max_rows_to_retrieve
-        response = self._GetQueryResponse(current_row, max_rows_to_retrieve)
+        response = self._GetQueryResponse(job_id, max_rows_to_retrieve)
 
         if 'rows' in response:
-            current_row += len(response['rows'])
+            self._current_row[job_id] += len(response['rows'])
             if max_rows_to_retrieve is not None:
                 rows_left -= len(response['rows'])
 
         while ((max_rows_to_retrieve is None or rows_left > 0)
-               and current_row < int(response['totalRows'])):
-            more_data = self._GetQueryResponse(current_row, rows_left)
+               and self._current_row[job_id] < int(response['totalRows'])):
+            more_data = self._GetQueryResponse(job_id, rows_left)
 
             if 'schema' not in response or 'fields' not in response['schema']:
                 if 'schema' in more_data and 'fields' in more_data['schema']:
                     response['schema'] = more_data['schema']
             if 'rows' in more_data:
-                current_row += len(more_data['rows'])
+                self._current_row[job_id] += len(more_data['rows'])
                 if max_rows_to_retrieve is not None:
                     rows_left -= len(more_data['rows'])
                 response['rows'].extend(more_data['rows'])
 
-        # Clear _job_id if all rows have been retrieved.
-        if current_row >= int(response['totalRows']):
-            self._job_id = None
+        # Note if all rows have been retrieved.
+        if self._current_row[job_id] >= int(response['totalRows']):
+            self._has_more_data[job_id] = False
 
         # Parse the response data into a more convenient dict, with members
         # 'fields' for row names and 'data' for row data.
         if 'schema' not in response or int(response['totalRows']) == 0:
             logging.error('Query produced no results!')
-            return (None, None)
+            self._has_more_data[job_id] = False
+            return None
 
         result = {'fields': [], 'data': []}
         for field in response['schema']['fields']:
@@ -118,7 +127,7 @@ class _BigQueryClient(object):
         for row in response['rows']:
             result['data'].append([field['v'] for field in row['f']])
 
-        return (current_row, result)
+        return result
 
     def ListTables(self):
         """Retrieves a list of the current tables.
@@ -228,7 +237,7 @@ class _BigQueryClient(object):
         logging.debug('Finished updating table with status: %s' %
                       pprint.saferepr(status))
 
-    def _GetQueryResponse(self, start_index, rows_to_retrieve, retries=4):
+    def _GetQueryResponse(self, job_id, rows_to_retrieve, retries=4):
         if rows_to_retrieve is None:
             max_results = MAX_RESULTS_PER_PACKET
         else:
@@ -239,11 +248,12 @@ class _BigQueryClient(object):
 
         while 'status' in data and data['status']['state'] == 'RUNNING':
             try:
-                data = jobs.getQueryResults(timeoutMs=self.VerifyTimeMSecLeft(),
-                                            projectId=self.project_id,
-                                            jobId=self._job_id,
-                                            maxResults=max_results,
-                                            startIndex=start_index).execute()
+                data = jobs.getQueryResults(
+                    timeoutMs=self.VerifyTimeMSecLeft(job_id),
+                    projectId=self.project_id,
+                    jobId=job_id,
+                    maxResults=max_results,
+                    startIndex=self._current_row[job_id]).execute()
             except errors.Error as e:
                 if retries > 0:
                     logging.error('Query failed; attempting %d more times.'
@@ -255,19 +265,19 @@ class _BigQueryClient(object):
                 else:
                     raise
             logging.debug(('Response[job_id=%s, start_index=%d]: %s'
-                           % (self._job_id, start_index, data))[:300])
+                           % (job_id, self._current_row[job_id], data))[:300])
         return data
 
-    def VerifyTimeMSecLeft(self):
-        if self._start_time is None or self._total_timeout is None:
+    def VerifyTimeMSecLeft(self, job_id):
+        if self._start_time[job_id] is None or self._total_timeout[job_id] is None:
             raise TimeoutError('Start time and/or total timeout not set.')
 
-        time_taken = datetime.now() - self._start_time
-        if time_taken >= self._total_timeout:
+        time_taken = datetime.now() - self._start_time[job_id]
+        if time_taken >= self._total_timeout[job_id]:
             raise TimeoutError('Client timeout reached at %s msec.' %
                                (time_taken.total_seconds() * 1000))
 
-        return int((self._total_timeout - time_taken).total_seconds() * 1000)
+        return int((self._total_timeout[job_id] - time_taken).total_seconds() * 1000)
 
 
 class AppAssertionCredentialsBQClient(_BigQueryClient):
