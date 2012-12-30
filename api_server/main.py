@@ -20,8 +20,8 @@
 
 import logging
 
-import cloud_sql_backend
-import cloud_sql_client
+from common import cloud_sql_backend
+from common import cloud_sql_client
 import server
 
 

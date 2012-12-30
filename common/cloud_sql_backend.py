@@ -19,10 +19,11 @@
 todo: Lots more text.
 """
 
-import backend
 import logging
-from metrics import DetermineLocaleType
 import pprint
+
+import backend
+from metrics import DetermineLocaleType
 
 INSTANCE = 'mlab-metrics:database'
 DATABASE = 'mlab_metrics'

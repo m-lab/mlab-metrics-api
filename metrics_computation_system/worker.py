@@ -24,10 +24,10 @@ import time
 from google.appengine.ext import webapp
 from google.appengine.api import runtime
 
-import big_query_backend
-import big_query_client
-import cloud_sql_backend
-import cloud_sql_client
+from common import big_query_backend
+from common import big_query_client
+from common import cloud_sql_backend
+from common import cloud_sql_client
 import server
 
 _MIN_ENTRIES_THRESHOLD = 100

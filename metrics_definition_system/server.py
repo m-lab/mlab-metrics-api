@@ -30,8 +30,8 @@ from google.appengine.ext.webapp import template
 from google.appengine.ext.webapp.util import run_wsgi_app
 from oauth2client.appengine import OAuth2DecoratorFromClientSecrets
 
-import backend as backend_interface
-import metrics
+from common import backend as backend_interface
+from common import metrics
 
 _backend = None
 _metrics_data = dict()

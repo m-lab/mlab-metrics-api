@@ -19,9 +19,9 @@ import logging
 from google.appengine.ext import webapp
 from google.appengine.api import taskqueue
 
-import backend as backend_interface
-import cloud_sql_backend
-import cloud_sql_client
+from common import backend as backend_interface
+from common import cloud_sql_backend
+from common import cloud_sql_client
 import server
 
 

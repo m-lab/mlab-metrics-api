@@ -33,8 +33,8 @@ from deps.bottle import route
 from deps.bottle import view
 from google.appengine.ext.webapp.util import run_wsgi_app
 
-import locales
-import metrics
+from common import locales
+from common import metrics
 import query_engine
 
 _backend = None

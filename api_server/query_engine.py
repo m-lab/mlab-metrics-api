@@ -23,7 +23,8 @@ and longitude coordinates (HandleNearestNeighborQuery).
 """
 
 import logging
-import metrics
+
+from common import metrics
 
 
 class Error(Exception):
