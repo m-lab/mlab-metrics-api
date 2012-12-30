@@ -14,7 +14,7 @@
 #
 # Author: Dylan Curley
 
-"""This module runs the Bottle web server to handle user & API requests.
+"""This module runs the web server to handle user & API requests.
 
 The Metrics Definition System ...
 
@@ -72,7 +72,7 @@ def _RefreshMetricsData(http):
 
 
 def start(backend):
-    """Start the bottle web framework on AppEngine.
+    """Start the web framework on AppEngine.
 
     This function never returns.
     """

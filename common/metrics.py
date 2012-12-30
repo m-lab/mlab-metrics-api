@@ -24,7 +24,6 @@ from datetime import timedelta
 import logging
 
 import backend as backend_interface
-import big_query_client
 
 #todo: use this or delete it
 MAX_LOADED_METRICS_KEYS = 300

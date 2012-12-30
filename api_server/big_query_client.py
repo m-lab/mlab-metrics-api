@@ -1,1 +1,0 @@
-../common/big_query_client.py
