@@ -157,6 +157,10 @@ class BigQueryBackend(backend.Backend):
 
     def ExistingDates(self):
         """Retrieves a list of existing months.
+
+        Returns:
+            (list) A list of datetime.date objects, one for each month that data
+            exists in BigQuery.
         """
         return self._DateTableMap().keys()
 

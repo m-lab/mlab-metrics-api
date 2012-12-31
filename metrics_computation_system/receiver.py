@@ -22,10 +22,9 @@ import logging
 from google.appengine.ext import webapp
 from google.appengine.api import taskqueue
 
-from common import backend as backend_interface
-from common import cloud_sql_backend
-from common import cloud_sql_client
 import server
+from worker import RequestType
+from worker import SendTaskRequest
 
 
 def HANDLERS():
@@ -60,7 +59,7 @@ class DeleteMetricHandler(webapp.RequestHandler):
             return
 
         # Pass the delete request on to the worker pool.
-        _SendBackendRequest({'metric': metric, 'request': 'delete_metric'})
+        SendTaskRequest({'request': RequestType.DELETE_METRIC, 'metric': metric})
 
 
 class RefreshMetricHandler(webapp.RequestHandler):
@@ -72,31 +71,17 @@ class RefreshMetricHandler(webapp.RequestHandler):
         The request is sent to the backend system as a work task, where it is
         actually completed.
         """
-        metrics = self.request.get('metric', default_value='').split(',')
+        metric = self.request.get('metric', default_value=None)
 
-        if metrics == ['']:  # No metrics specified.
+        if metric is None:  # No metrics specified.
             logging.error('Ignoring empty REFRESH request.')
             return
-        if metrics == ['*']:  # All metrics.
-            metrics = self._FetchMetricNames()
 
         # Pass the refresh request on to the worker pool.
-        for metric in metrics:
-            _SendBackendRequest({'metric': metric, 'request': 'refresh_metric'})
-
-    def _FetchMetricNames(self):
-        #todo: Have the worker complete this logic, not the receiver.
-        client = cloud_sql_client.CloudSQLClient(
-            cloud_sql_backend.INSTANCE, cloud_sql_backend.DATABASE)
-        backend = cloud_sql_backend.CloudSQLBackend(client)
-
-        try:
-            metric_infos = backend.GetMetricInfo()
-        except backend_interface.LoadError as e:
-            logging.error(e)
-            return None
-
-        return metric_infos.keys()
+        if metric == '*':  # Refresh all metrics.
+            SendTaskRequest({'request': RequestType.REFRESH_METRIC})
+        else:
+            SendTaskRequest({'request': RequestType.REFRESH_METRIC, 'metric': metric})
 
 
 class UpdateMetricHandler(webapp.RequestHandler):
@@ -115,7 +100,7 @@ class UpdateMetricHandler(webapp.RequestHandler):
             return
 
         # Pass the update request on to the worker pool.
-        _SendBackendRequest({'metric': metric, 'request': 'update_metric'})
+        SendTaskRequest({'request': RequestType.UPDATE_METRIC, 'metric': metric})
 
 
 class UpdateLocalesHandler(webapp.RequestHandler):
@@ -128,18 +113,7 @@ class UpdateLocalesHandler(webapp.RequestHandler):
         actually completed.
         """
         # Pass the update request on to the worker pool.
-        _SendBackendRequest({'request': 'update_locales'})
-
-
-def _SendBackendRequest(params):
-    if 'metric' in params:
-        logging.info('Sending %s request to the worker queue for metric: %s'
-                     % (params['request'].upper(), params['metric']))
-    else:
-        logging.info('Sending %s request to the worker queue.'
-                     % params['request'].upper())
-
-    taskqueue.add(target='worker', url='/_ah/task', params=params)
+        SendTaskRequest({'request': RequestType.UPDATE_LOCALES})
 
 
 if __name__ == '__main__':
