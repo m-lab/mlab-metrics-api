@@ -43,13 +43,16 @@ class WeeklyRefreshHandler(webapp.RequestHandler):
     def get(self):
         """Handles "get" requests to send a metrics refresh request.
         """
-        #todo: Also send request for locale refresh.
-        logging.info('Starting weekly refresh of all metrics.')
         host = self.request.headers['Host']
-        path = '/refresh?metric=*'
 
+        logging.info('Requesting weekly refresh of all metrics.')
+        self._SendRequest(host, '/refresh?metric=*')
+        logging.info('Requesting weekly update of all locales.')
+        self._SendRequest(host, '/relocate')
+
+    def _SendRequest(self, host, path):
         logging.debug('Sending request to: %s%s' % (host, path))
-        conn = httplib.HTTPConnection(host)
+        conn = httplib.HTTPConnection(host, timeout=20)
         conn.request('GET', path)
 
         res = conn.getresponse()

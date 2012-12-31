@@ -39,5 +39,5 @@ handlers:
   script: weekly_refresh.py
   login: admin
 
-- url: /(delete|refresh|update)
+- url: /(delete|refresh|update|relocate)
   script: receiver.py

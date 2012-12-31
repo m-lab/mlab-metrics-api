@@ -39,6 +39,7 @@ def HANDLERS():
         ('/delete', DeleteMetricHandler),
         ('/refresh', RefreshMetricHandler),
         ('/update', UpdateMetricHandler),
+        ('/relocate', UpdateLocalesHandler),
     ]
 
 
@@ -77,16 +78,29 @@ class RefreshMetricHandler(webapp.RequestHandler):
             logging.error('Ignoring empty REFRESH request.')
             return
         if metrics == ['*']:  # All metrics.
-            metrics = _FetchMetricNames()
+            metrics = self._FetchMetricNames()
 
         # Pass the refresh request on to the worker pool.
         for metric in metrics:
             _SendBackendRequest({'metric': metric, 'request': 'refresh_metric'})
-        _UpdateLocales()
+
+    def _FetchMetricNames(self):
+        #todo: Have the worker complete this logic, not the receiver.
+        client = cloud_sql_client.CloudSQLClient(
+            cloud_sql_backend.INSTANCE, cloud_sql_backend.DATABASE)
+        backend = cloud_sql_backend.CloudSQLBackend(client)
+
+        try:
+            metric_infos = backend.GetMetricInfo()
+        except backend_interface.LoadError as e:
+            logging.error(e)
+            return None
+
+        return metric_infos.keys()
 
 
 class UpdateMetricHandler(webapp.RequestHandler):
-    """Handle a request to refresh metrics data.
+    """Handle a request to update (recompute) metrics data.
     """
     def get(self):
         """Handles a "get" request to update metric data.
@@ -102,21 +116,20 @@ class UpdateMetricHandler(webapp.RequestHandler):
 
         # Pass the update request on to the worker pool.
         _SendBackendRequest({'metric': metric, 'request': 'update_metric'})
-        _UpdateLocales()
 
 
-def _FetchMetricNames():
-    client = cloud_sql_client.CloudSQLClient(
-        cloud_sql_backend.INSTANCE, cloud_sql_backend.DATABASE)
-    backend = cloud_sql_backend.CloudSQLBackend(client)
+class UpdateLocalesHandler(webapp.RequestHandler):
+    """Handle a request to update (recompute) locales.
+    """
+    def get(self):
+        """Handles a "get" request to update locales data.
 
-    try:
-        metric_infos = backend.GetMetricInfo()
-    except backend_interface.LoadError as e:
-        logging.error(e)
-        return None
+        The request is sent to the backend system as a work task, where it is
+        actually completed.
+        """
+        # Pass the update request on to the worker pool.
+        _SendBackendRequest({'request': 'update_locales'})
 
-    return metric_infos.keys()
 
 def _SendBackendRequest(params):
     if 'metric' in params:
@@ -127,10 +140,6 @@ def _SendBackendRequest(params):
                      % params['request'].upper())
 
     taskqueue.add(target='worker', url='/_ah/task', params=params)
-
-def _UpdateLocales():
-    # Request regeneration of locale data.
-    _SendBackendRequest({'request': 'update_locales'})
 
 
 if __name__ == '__main__':
