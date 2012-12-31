@@ -38,15 +38,15 @@ class Error(Exception):
     pass
 
 class LoadError(Error):
-    """An error occured loading metric data.
+    """An error occurred loading metric data.
     """
     pass
 class LookupError(Error):
-    """An error occured querying or looking up metric data.
+    """An error occurred querying or looking up metric data.
     """
     pass
 class RefreshError(Error):
-    """An error occured refreshing metric data.
+    """An error occurred refreshing metric data.
     """
     pass
 

@@ -15,7 +15,6 @@
 # Author: Dylan Curley
 
 """This module runs the web server to handle HTTP requests.
-todo: comments
 """
 
 import logging
@@ -25,6 +24,8 @@ from google.appengine.ext.webapp.util import run_wsgi_app
 
 
 class Error(Exception):
+    """An error occurred while starting the application.
+    """
     pass
 
 
@@ -32,6 +33,11 @@ def start(handlers):
     """Start the web framework on AppEngine.
 
     This function never returns.
+
+    Args:
+        handlers (list of tuples): List of (string, fn) tuples, where the first
+            tuple element is the URL being handled, and the second is the
+            function handling that page.
     """
     logging.getLogger().setLevel(logging.DEBUG)
 

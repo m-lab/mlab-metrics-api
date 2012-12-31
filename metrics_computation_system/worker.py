@@ -14,6 +14,9 @@
 #
 # Author: Dylan Curley
 
+"""This module contains logic for carrying out create/modify/delete tasks.
+"""
+
 import base64
 from collections import defaultdict
 import logging
@@ -80,6 +83,12 @@ city
 
 
 def HANDLERS():
+    """Returns a list of URL handlers for this application.
+
+    Returns:
+        (list) A list of (string, fn) tuples where the first element is a target
+        URL and the second is a function that handles requests at that URL.
+    """
     return [
         ('/_ah/start', StartupHandler),
         ('/_ah/task', TaskRequestHandler),
@@ -88,7 +97,13 @@ def HANDLERS():
 
 
 class StartupHandler(webapp.RequestHandler):
+    """Handle a request to start the backend worker.
+    """
     def get(self):
+        """Handles a "get" request to start the backend worker.
+
+        Noop.
+        """
         logging.info('Received START request.')
         self.response.headers['Content-Type'] = 'text/plain'
         self.response.out.write('Started...')
@@ -96,7 +111,13 @@ class StartupHandler(webapp.RequestHandler):
 
 
 class ShutdownHandler(webapp.RequestHandler):
+    """Handle a request to stop the backend worker.
+    """
     def get(self):
+        """Handles a "get" request to stop the backend worker.
+
+        Noop.
+        """
         logging.info('Received STOP request.')
         self.response.headers['Content-Type'] = 'text/plain'
         self.response.out.write('Shutting down.')
@@ -104,7 +125,16 @@ class ShutdownHandler(webapp.RequestHandler):
 
 
 class TaskRequestHandler(webapp.RequestHandler):
+    """Handle a task request.
+    """
     def post(self):
+        """Handles a "get" request to do work specified in the task.
+
+        This is where all of the brains of the worker exists. Tasks are parsed
+        and work is dispatched to the appropriate method for completion. Valid
+        work tasks include deleting, refreshing, and updating metric data, as
+        well as updating locale data.
+        """
         request = self.request.get('request', default_value=None)
         metric = self.request.get('metric', default_value=None)
         logging.info('Received work task. {request: %s, metric: %s}'

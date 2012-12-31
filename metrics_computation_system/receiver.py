@@ -14,6 +14,9 @@
 #
 # Author: Dylan Curley
 
+"""This module contains logic for receiving create/modify/delete requests.
+"""
+
 import logging
 
 from google.appengine.ext import webapp
@@ -26,6 +29,12 @@ import server
 
 
 def HANDLERS():
+    """Returns a list of URL handlers for this application.
+
+    Returns:
+        (list) A list of (string, fn) tuples where the first element is a target
+        URL and the second is a function that handles requests at that URL.
+    """
     return [
         ('/delete', DeleteMetricHandler),
         ('/refresh', RefreshMetricHandler),
@@ -34,7 +43,15 @@ def HANDLERS():
 
 
 class DeleteMetricHandler(webapp.RequestHandler):
+    """Handle a request to delete metrics data.
+    """
+    #todo: unused, right? delete this handler?
     def get(self):
+        """Handles a "get" request to delete a metric and its data.
+
+        The request is sent to the backend system as a work task, where it is
+        actually completed.
+        """
         metric = self.request.get('metric', default_value=None)
 
         if metric is None:
@@ -46,7 +63,14 @@ class DeleteMetricHandler(webapp.RequestHandler):
 
 
 class RefreshMetricHandler(webapp.RequestHandler):
+    """Handle a request to refresh metrics data.
+    """
     def get(self):
+        """Handles a "get" request to refresh metric data.
+
+        The request is sent to the backend system as a work task, where it is
+        actually completed.
+        """
         metrics = self.request.get('metric', default_value='').split(',')
 
         if metrics == ['']:  # No metrics specified.
@@ -62,7 +86,14 @@ class RefreshMetricHandler(webapp.RequestHandler):
 
 
 class UpdateMetricHandler(webapp.RequestHandler):
+    """Handle a request to refresh metrics data.
+    """
     def get(self):
+        """Handles a "get" request to update metric data.
+
+        The request is sent to the backend system as a work task, where it is
+        actually completed.
+        """
         metric = self.request.get('metric', default_value=None)
 
         if metric is None:

@@ -16,7 +16,8 @@
 #
 # Author: Dylan Curley
 
-"""This module starts the M-Lab Metrics Definition System on AppEngine."""
+"""This module starts the M-Lab Metrics Definition System on AppEngine.
+"""
 
 import logging
 

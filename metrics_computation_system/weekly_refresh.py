@@ -14,6 +14,9 @@
 #
 # Author: Dylan Curley
 
+"""This module contains logic for triggering weekly refreshes of metric data.
+"""
+
 import httplib
 import logging
 
@@ -23,13 +26,24 @@ import server
 
 
 def HANDLERS():
+    """Returns a list of URL handlers for this application.
+
+    Returns:
+        (list) A list of (string, fn) tuples where the first element is a target
+        URL and the second is a function that handles requests at that URL.
+    """
     return [
         ('/cron/weekly_refresh', WeeklyRefreshHandler),
     ]
 
 
 class WeeklyRefreshHandler(webapp.RequestHandler):
+    """Handle a request to send a metrics refresh request to the receiver.
+    """
     def get(self):
+        """Handles "get" requests to send a metrics refresh request.
+        """
+        #todo: Also send request for locale refresh.
         logging.info('Starting weekly refresh of all metrics.')
         host = self.request.headers['Host']
         path = '/refresh?metric=*'

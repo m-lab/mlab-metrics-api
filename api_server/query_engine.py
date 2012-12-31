@@ -28,12 +28,17 @@ from common import metrics
 
 
 class Error(Exception):
+    """Common exception that all other exceptions in this module inherit from.
+    """
     pass
 
 class LookupError(Error):
+    """An error occurred during a lookup query.
+    """
     pass
-
 class SyntaxError(Error):
+    """There was a syntax error in the request.
+    """
     pass
 
 
@@ -49,7 +54,7 @@ def HandleLocaleQuery(locales_data, locale):
         locale is unkown.
 
     Returns:
-        (dict): Data about the requested locale.
+        (dict) Data about the requested locale.
     """
     if locale not in locales_data:
         raise LookupError('Locale "%s" does not exist.' % locale)
@@ -83,7 +88,7 @@ def HandleMetricQuery(metrics_data, metric, locale, year, month):
         SyntaxError: If expected parameters are not provided (are None).
 
     Returns:
-        (dict): Data about the requested metric at the given year & month for
+        (dict) Data about the requested metric at the given year & month for
         the given locale.
     """
     # Anticipate non-standard locale= requests for world data.
@@ -128,7 +133,7 @@ def HandleNearestNeighborQuery(locale_finder, lat, lon):
         SyntaxError: If expected parameters are not provided (are None).
 
     Returns:
-        (dict): The nearest city, region, and country to the provided latitude
+        (dict) The nearest city, region, and country to the provided latitude
         and longitude coordinates.
     """
     if lat is None or lon is None:

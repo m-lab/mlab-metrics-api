@@ -47,6 +47,9 @@ def start(backend):
     """Start the bottle web framework on AppEngine.
 
     This function never returns.
+
+    Args:
+        backend (Backend object): Datastore backend.
     """
     global _backend
 
@@ -62,6 +65,9 @@ def locale_api_query(locale_name):
     requested locale does not exist, a JSON error is returned.  Otherwise
     details are returned for this locale, for its direct parent, and for all of
     its direct children.
+
+    Args:
+        locale_name (string): The locale to query.
 
     Returns:
         (string) JSON describing either the requested locale or any lookup
@@ -90,6 +96,9 @@ def metric_api_query(metric_name):
     requested metric does not exist or if any expected GET parameters are not
     specified, a JSON error is returned.  Otherwise metric details are returned
     for the specific query.
+
+    Args:
+        metric_name (string): The metric to query.
 
     Returns:
         (string) JSON describing either the requested metric or any lookup

@@ -15,10 +15,6 @@
 # Author: Dylan Curley
 
 """This module runs the web server to handle user & API requests.
-
-The Metrics Definition System ...
-
-todo: comments
 """
 
 import logging
@@ -41,10 +37,13 @@ _client_secrets = OAuth2DecoratorFromClientSecrets(
 
 
 class Error(Exception):
+    """Common exception that all other exceptions in this module inherit from.
+    """
     pass
 
-
 class RefreshError(Error):
+    """An error occurred while refreshing data form the datastore backend.
+    """
     pass
 
 
@@ -75,6 +74,9 @@ def start(backend):
     """Start the web framework on AppEngine.
 
     This function never returns.
+
+    Args:
+        backend (Backend object): Datastore backend.
     """
     global _backend
 
@@ -93,35 +95,39 @@ def start(backend):
 
 class IntroPageHandler(webapp.RequestHandler):
     """Handle a request for the "Introduction" page.
-
-    This function really doesn't do much, but it returns the data contained at
-    views/introduction.tpl which contains some detail on the project and useful
-    links to other information.
-
-    Returns:
-        (string) A web page (via the @view decorator) an introduction to the
-        project.
     """
     @_TemplateFile('views/introduction.tpl')
     def get(self):
+        """Handles "get" requests for the Introduction page.
+
+        This function really doesn't do much, but it returns the data contained
+        at views/introduction.tpl which contains some detail on the project and
+        useful links to other information.
+
+        Returns:
+            (string) A web page (via the @_TemplateFile decorator) with
+            introductory information.
+        """
         return {'note': self.request.get('note', default_value=None),
                 'error': self.request.get('error', default_value=None)}
 
 
 class ListMetricsPageHandler(webapp.RequestHandler):
     """Handle a request for the "List Metrics" page.
-
-    The "List Metrics" page contains the name and short description for each
-    metric, and a link where more info can be retrieved.  It's intended only
-    as a quick view of the metrics.
-
-    Returns:
-        (string) A web page (via the @view decorator) listing all available
-        metrics.
     """
     @_client_secrets.oauth_required
     @_TemplateFile('views/list_metrics.tpl')
     def get(self):
+        """Handles "get" requests for the List Metric page.
+
+        The "List Metrics" page contains the name and short description for each
+        metric, and a link where more info can be retrieved.  It's intended only
+        as a quick view of the metrics.
+
+        Returns:
+            (string) A web page (via the @_TemplateFile decorator) listing all
+            metrics.
+        """
         view = {'metrics': [],
                 'note': self.request.get('note', default_value=None),
                 'error': self.request.get('error', default_value=None)}
@@ -148,8 +154,9 @@ class EditMetricPageHandler(webapp.RequestHandler):
         """Handles "get" requests for the Edit Metric page.
 
         Returns:
-            (string) A web page (via the @view decorator) listing details for
-            the requested metric, in a form that allows details to be edited.
+            (string) A web page (via the @_TemplateFile decorator) listing
+            details for the requested metric, in a form that allows details to
+            be edited.
         """
         view = {'metric': [],
                 'note': self.request.get('note', default_value=None),
@@ -220,8 +227,8 @@ class NewMetricPageHandler(webapp.RequestHandler):
         """Handles "get" requests for the New Metric page.
 
         Returns:
-            (string) A web page (via the @view decorator) with input boxes
-            for details for the metric to be created.
+            (string) A web page (via the @_TemplateFile decorator) with input
+            boxes for details for the metric to be created.
         """
         return {'metric': None,
                 'note': self.request.get('note', default_value=None),
@@ -237,7 +244,7 @@ class DeleteMetricPageHandler(webapp.RequestHandler):
         """Handles "get" requests for the Delete Metric page.
 
         Returns:
-            (string) A web page (via the @view decorator) requesting
+            (string) A web page (via the @_TemplateFile decorator) requesting
             verification that the user wishes to delete the specified metric.
         """
         view = {'metric': self.request.get('metric', default_value=None),
@@ -271,14 +278,17 @@ class DeleteMetricPageHandler(webapp.RequestHandler):
 
 class ContactUsPageHandler(webapp.RequestHandler):
     """Handle a request for the "Contact Us" page.
-
-    This function really doesn't do much, but it returns the data contained at
-    views/contact.tpl which contains various contact information.
-
-    Returns:
-        (string) A web page (via the @view decorator) with contact information.
     """
     @_TemplateFile('views/contact.tpl')
     def get(self):
+        """Handles "get" requests for the Contact Us page.
+
+        This function really doesn't do much, but it returns the data contained
+        at views/contact.tpl which contains various contact information.
+
+        Returns:
+            (string) A web page (via the @_TemplateFile decorator) with contact
+            information.
+        """
         return {'note': self.request.get('note', default_value=None),
                 'error': self.request.get('error', default_value=None)}

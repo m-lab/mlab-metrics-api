@@ -33,19 +33,19 @@ class Error(Exception):
     pass
 
 class DeleteError(Error):
-    """An error occured while deleting data from the datastore.
+    """An error occurred while deleting data from the datastore.
     """
     pass
 class EditError(Error):
-    """An error occured while editing data in the datastore.
+    """An error occurred while editing data in the datastore.
     """
     pass
 class LoadError(Error):
-    """An error occured loading data from the datastore.
+    """An error occurred loading data from the datastore.
     """
     pass
 class QueryError(Error):
-    """An error occured while querying the datastore.
+    """An error occurred while querying the datastore.
     """
     pass
 

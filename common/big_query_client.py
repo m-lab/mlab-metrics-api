@@ -46,7 +46,7 @@ class Error(Exception):
     pass
 
 class ConnectionError(Error):
-    """An error occured while connecting to BigQuery.
+    """An error occurred while connecting to BigQuery.
     """
     pass
 class TimeoutError(Error):
@@ -54,7 +54,7 @@ class TimeoutError(Error):
     """
     pass
 class QueryError(Error):
-    """An error occured while querying BigQuery.
+    """An error occurred while querying BigQuery.
     """
     pass
 

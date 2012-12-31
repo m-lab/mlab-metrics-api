@@ -38,7 +38,7 @@ class Error(Exception):
     pass
 
 class RefreshError(Error):
-    """An error occured refreshing locale data.
+    """An error occurred refreshing locale data.
     """
     pass
 

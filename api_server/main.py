@@ -16,7 +16,8 @@
 #
 # Author: Dylan Curley
 
-"""This module starts the M-Lab Metrics API Server on AppEngine."""
+"""This module starts the M-Lab Metrics API Server on AppEngine.
+"""
 
 import logging
 
