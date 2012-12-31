@@ -14,32 +14,56 @@
 #
 # Author: Dylan Curley
 
-"""This module ...
+"""This module defines an abstract interface for datastore backends.
 
-todo: Lots more text.
+Datastore backends should guarantee implementation of the methods detailed in
+the Backend class, below. This allows datastore backend users a reliable
+interface and an easy path for migrating between backends.
+
+Similarly, datastore backends should raise exceptions defined here, instead of
+raising exceptions defined in their own modules. This allows users to catch
+these exceptions without concern when migrating between backends, and allows for
+a common point of reference for exceptions.
 """
 
 
 class Error(Exception):
+    """Common exception that all other exceptions in this module inherit from.
+    """
     pass
 
 class DeleteError(Error):
+    """An error occured while deleting data from the datastore.
+    """
     pass
 class EditError(Error):
+    """An error occured while editing data in the datastore.
+    """
     pass
 class LoadError(Error):
+    """An error occured loading data from the datastore.
+    """
     pass
 class QueryError(Error):
+    """An error occured while querying the datastore.
+    """
     pass
 
 
 class RequestType:
+    """Requests to the datastore backend can be referenced by these constants.
+    """
     EDIT = 'edit'
     DELETE = 'delete'
     NEW = 'new'
 
 
 class Backend(object):
+    """An abstract interface that all datastore backends must honor.
+
+    Refer to the specific datastore backend implementation for details of how
+    each of these methods should be treated. Results may vary.
+    """
     def SetClientHTTP(self, http):
         pass
     def ExistingDates(self):

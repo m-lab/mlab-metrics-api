@@ -14,9 +14,13 @@
 #
 # Author: Dylan Curley
 
-"""This module ...
+"""This module contains clients for interacting with the BigQuery API.
 
-todo: Lots more text.
+The client should be instantiated with either the ClientSecretsBQClient class or
+the AppAssertionCredentialsBQClient class, depending on the desired credentials
+model.
+
+BigQuery client exceptions are defined in this module.
 """
 
 from datetime import datetime
@@ -37,20 +41,37 @@ MAX_RESULTS_PER_PACKET = 2000
 
 
 class Error(Exception):
+    """Common exception that all other exceptions in this module inherit from.
+    """
     pass
 
 class ConnectionError(Error):
+    """An error occured while connecting to BigQuery.
+    """
     pass
-
 class TimeoutError(Error):
+    """A query took too long to return results.
+    """
     pass
-
 class QueryError(Error):
+    """An error occured while querying BigQuery.
+    """
     pass
 
 
 class _BigQueryClient(object):
+    """This class does not implement authentication, and should be subclassed.
+
+    Use ClientSecretsBQClient() or AppAssertionCredentialsBQClient() instead, as
+    those classes add authentication to the client.
+    """
     def __init__(self, project_id, dataset):
+        """Constructor.
+
+        Args:
+            project_id (string): BigQuery project to connect to.
+            dataset (string): BigQuery dataset to connect to.
+        """
         self.project_id = project_id
         self.dataset = dataset
         self._max_results_per_packet = MAX_RESULTS_PER_PACKET
@@ -64,6 +85,14 @@ class _BigQueryClient(object):
         self._Connect()
 
     def IssueQuery(self, query):
+        """Issues a BigQuery query.
+
+        Args:
+            query (string): The query to issue.
+
+        Returns:
+            (int) A job ID to use for retrieving the query results.
+        """
         # Issue the query.
         logging.debug('Query: %s' % query)
         request = {'configuration': {'query': {'query': query}}}
@@ -76,12 +105,31 @@ class _BigQueryClient(object):
         return job_id
 
     def HasMoreQueryResults(self, job_id):
+        """Returns whether or not more result data exists for the given job.
+
+        Args:
+            job_id (int): Job ID tied to a specific query, as previously
+                returned by the IssueQuery() method.
+
+        Returns:
+            (bool) True if more data exists, otherwise false.
+        """
         if job_id not in self._has_more_data:
             return False
         return self._has_more_data[job_id]
 
     def GetQueryResults(self, job_id, timeout_msec=1000 * 60 * 10,
                         max_rows_to_retrieve=10000):
+        """Retrieves query results from BigQuery for the specified job.
+
+        Args:
+            job_id (int): Job ID tied to a specific query, as previously
+                returned by the IssueQuery() method.
+            timeout_msec (int): Allowed runtime for results retrieval. Defaults
+                to 10 minutes.
+            max_rows_to_retrieve (int): Number of rows to retrieve. Defaults to
+                10000 rows.
+        """
         if not self.HasMoreQueryResults(job_id):
             return None
 
@@ -131,12 +179,15 @@ class _BigQueryClient(object):
 
     def ListTables(self):
         """Retrieves a list of the current tables.
+
+        Returns:
+            (tuple) List of table names.
         """
         tables = self._service.tables()
         reply = tables.list(projectId=self.project_id,
                             datasetId=self.dataset).execute()
 
-        return [t['tableReference']['tableId'] for t in reply['tables']]
+        return tuple(t['tableReference']['tableId'] for t in reply['tables'])
 
     def UpdateTable(self, table_name, fields, field_data):
         """Update a given table with the passed new 'field_data'.
@@ -145,6 +196,15 @@ class _BigQueryClient(object):
         update table data is to create a new table with the desired data, then
         request a copy of the new table to overwrite the old table.
         https://developers.google.com/bigquery/docs/developers_guide#deletingrows
+
+        Args:
+            table_name (string): Name of the table to update.
+            fields (list of string tuples): A list of columns, where each list
+                element is a (string, string) tuple describing the column name
+                and the column type, e.g. 'int' or 'float'.
+            field_data (list of tuples): A list of row data to create in the
+                updated table. This should contain *all* table data as existing
+                table data won't be preserved.
         """
         # Create a new (updated) table at "<table_name>_<timestamp>".
         tmp_table = '%s_%s' % (table_name, datetime.now().strftime('%s'))
@@ -249,7 +309,7 @@ class _BigQueryClient(object):
         while 'status' in data and data['status']['state'] == 'RUNNING':
             try:
                 data = jobs.getQueryResults(
-                    timeoutMs=self.VerifyTimeMSecLeft(job_id),
+                    timeoutMs=self._VerifyTimeMSecLeft(job_id),
                     projectId=self.project_id,
                     jobId=job_id,
                     maxResults=max_results,
@@ -268,7 +328,7 @@ class _BigQueryClient(object):
                            % (job_id, self._current_row[job_id], data))[:300])
         return data
 
-    def VerifyTimeMSecLeft(self, job_id):
+    def _VerifyTimeMSecLeft(self, job_id):
         if self._start_time[job_id] is None or self._total_timeout[job_id] is None:
             raise TimeoutError('Start time and/or total timeout not set.')
 
@@ -281,6 +341,11 @@ class _BigQueryClient(object):
 
 
 class AppAssertionCredentialsBQClient(_BigQueryClient):
+    """BigQuery client implemented with App Assertion Credentials.
+
+    Use this BigQuery client if the application credentials should be used for
+    BigQuery transactions.
+    """
     def _Connect(self):
         # Certify BigQuery access credentials.
         self._credentials = AppAssertionCredentials(
@@ -290,12 +355,31 @@ class AppAssertionCredentialsBQClient(_BigQueryClient):
 
 
 class ClientSecretsBQClient(_BigQueryClient):
+    """BigQuery client implemented with Client Secret Credentials.
+
+    Use this BigQuery client if the client's credentials (e.g. the user) should
+    be used for BigQuery transactions. This guarantees that only registered and
+    trusted clients can connect to BigQuery.
+    """
     def _Connect(self):
         self._http = None
 
     def SetClientHTTP(self, http):
+        """Sets the client-certified http credentials.
+
+        Args:
+            http (http object): Client-certified http credentials.
+        """
         self._http = http
 
     def Query(self, query, timeout_msec=1000 * 60):
+        """Issues a query to BigQuery.
+
+        Args:
+            query (string): The query to be issued.
+            timeout_msec (int): Amount of time the query is allowed to run.
+                Defaults to 1 minute.
+        """
+        #todo: Does this method actually do anything? Does super.Query() exist?
         self._service = build('bigquery', 'v2', http=self._http)
         return super(ClientSecretsBQClient, self).Query(query, timeout_msec)

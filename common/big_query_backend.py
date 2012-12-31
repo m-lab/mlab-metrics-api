@@ -14,9 +14,11 @@
 #
 # Author: Dylan Curley
 
-"""This module ...
+"""This module contains the datastore backend implementation for BigQuery.
 
-todo: Lots more text.
+Included in this module is the BigQueryBackend class, a number of constants
+that define specific details of the BigQuery instance and its interactions,
+and a QueryResults class for use when returning raw results to a user.
 """
 
 import datetime
@@ -36,7 +38,16 @@ DATE_TABLES_RE = r'^([1-9][0-9]{3})_([0-9]{2})$'
 DATE_TABLES_FMT = r'%04d_%02d'
 
 class QueryResults():
+    """A query results generator, parseable by methods Rows() and ColumnNames().
+    """
     def __init__(self, bigquery, query, max_rows_to_bucket=10000):
+        """Constructor.
+
+        Args:
+            bigquery (object): BigQuery client instance.
+            query (string): Query to send to the BigQuery.
+            max_rows_to_bucket (int): Number of rows to buffer.
+        """
         self.max_rows_to_bucket = max_rows_to_bucket
 
         self._bigquery = bigquery
@@ -45,10 +56,28 @@ class QueryResults():
         self._job_id = self._bigquery.IssueQuery(query)
 
     def ColumnNames(self):
-        self._FillDataBucket()
+        """Retrieves the names of the columns for these results.
+
+        Raises:
+            backend.QueryError: There are no results (thus no columns).
+
+        Returns:
+            An ordered list of column names.
+        """
+        if self._columns is None:
+            self._FillDataBucket()
         return self._columns
 
     def Rows(self):
+        """Retrieves a single row of results.
+
+        Raises:
+            StopIteration: No more rows exist to be returned.
+            backend.QueryError: There are no results (thus no rows).
+
+        Returns:
+            A list, one row of results.
+        """
         while self._HaveMoreRowData():
             self._FillDataBucket()
 
@@ -87,6 +116,8 @@ class QueryResults():
                 self._row_data = result['data']
 
 class BigQueryBackend(backend.Backend):
+    """BigQuery backend interface honoring the backend.Backend abstraction.
+    """
     def __init__(self, bigquery):
         """Constructor.
 
@@ -116,17 +147,11 @@ class BigQueryBackend(backend.Backend):
             query (string): Query to send to the BigQuery.
 
         Raises:
-            QueryError: If there was an error/failure issuing the query.
+            backend.QueryError: There was an error issuing the query.
 
         Returns:
-            tuple: A tuple of (query_id, data) where 'query_id' is a unique
-            query id that can be used to retrieve even more data via the method
-            ContinueRawQuery.  If no more data is present 'query_id' will be
-            None.  'data' is organized as a dict with the response row data from
-            BigQuery, with two sections, 'fields' as a list of the columns and
-            'data' as a collection of lists, one list for each row.  For
-            example:
-              { 'fields': ['a', 'b', 'c'], 'data': [[1, 2, 3], [4, 5, 6]] }
+            (QueryResults) An object that generates query results for the given
+            raw query.
         """
         return QueryResults(self._bigquery, query)
 
@@ -142,7 +167,7 @@ class BigQueryBackend(backend.Backend):
             metric_name (string): The name of the metric to be deleted.
 
         Raises:
-            DeleteError: If the requested metric info could not be deleted.
+            backend.DeleteError: The requested metric info could not be deleted.
         """
         #todo
         raise backend.DeleteError('Not yet implemented.')
@@ -157,11 +182,11 @@ class BigQueryBackend(backend.Backend):
                 specified, retrieves info all metric.
 
         Raises:
-            LoadError: If there was an error getting the metric info from
+            backend.LoadError: There was an error getting the metric info from
                 BigQuery.
 
         Returns:
-            (dict): Collection of data for the requested metric, keyed by the
+            (dict) Collection of data for the requested metric, keyed by the
             data type.  If no metric was requested, returns a dict of these
             collections (a dict inside a dict), keyed by metric name.
         """
@@ -199,7 +224,7 @@ class BigQueryBackend(backend.Backend):
                 the backend data store, keyed by metric name.
 
         Raises:
-            LoadError: If the requested updates could not be applied.
+            backend.LoadError: The requested updates could not be applied.
         """
         #todo: raise LoadError on failure
         fields = tuple((f, 'string')
@@ -228,12 +253,12 @@ class BigQueryBackend(backend.Backend):
             locale (string): Locale for which data should be loaded.
 
         Raises:
-            LoadError: If the requested metric data could not be read.  This may
-                happen if, for example, a bogus locale was requested, or a bogus
-                date.
+            backend.LoadError: The requested metric data could not be read. This
+                may happen if, for example, a bogus locale was requested, or a
+                bogus date.
 
         Returns:
-            (dict): Result data from the query, with keys "locale" and "value".
+            (dict) Result data from the query, with keys "locale" and "value".
         """
         query = ('SELECT locale, value'
                  '  FROM %s.%s'
@@ -255,7 +280,7 @@ class BigQueryBackend(backend.Backend):
                 tuple consisting of ints (year, month).
 
         Raises:
-            DeleteError: If the requested metric data could not be deleted.
+            backend.DeleteError: The requested metric data could not be deleted.
         """
         #todo
         raise backend.DeleteError('Not yet implemented.')
@@ -267,8 +292,11 @@ class BigQueryBackend(backend.Backend):
             locale_type (string): One of "country", "region", or "city" which
                 specifies the type of locale to retrieve data on.
 
+        Raises:
+            backend.LoadError: The locale data could not be retrieved.
+
         Returns:
-            (dict): Result data from the query, with keys "locale", "name",
+            (dict) Result data from the query, with keys "locale", "name",
             "parent", "lat" (latitude), and "lon" (longitude).
         """
         #todo: figure out why this query fails without the 'WHERE'.  timeout?

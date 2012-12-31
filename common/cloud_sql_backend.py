@@ -14,9 +14,10 @@
 #
 # Author: Dylan Curley
 
-"""This module ...
+"""This module contains the datastore backend implementation for CloudSQL.
 
-todo: Lots more text.
+Included in this module is the CloudSQLBackend class, and number of constants
+that define specific details of the CloudSQL instance and its interactions.
 """
 
 import logging
@@ -33,6 +34,8 @@ SAMPLE_METRIC_TABLE = 'num_of_clients'  # Expect 'num_of_clients' metric exists.
 
 
 class CloudSQLBackend(backend.Backend):
+    """CloudSQL backend interface honoring the backend.Backend abstraction.
+    """
     def __init__(self, cloudsql):
         """Constructor.
 
@@ -43,13 +46,21 @@ class CloudSQLBackend(backend.Backend):
         super(CloudSQLBackend, self).__init__()
 
     def ExistingDates(self, metric_name=SAMPLE_METRIC_TABLE):
-        """Retrieves a list of existing months.
+        """Retrieves a list of months for which data exists.
+
+        Args:
+            metric_name (string): The metric/table to query dates for. Defualts
+                to the global 'SAMPLE_METRIC_TABLE'.
+
+        Returns:
+            (list) A list of strings, each one containing a month in the format
+            'YYYY_MM' for which data exists for the specified metric name.
         """
         query = ('SELECT DISTINCT date'
                  '  FROM %s' % metric_name)
 
         dates = self._cloudsql.Query(query)
-        return [d[0] for d in dates['data']]
+        return tuple(d[0] for d in dates['data'])
 
     def DeleteMetricInfo(self, metric_name):
         """Deletes info for this metric.
@@ -71,7 +82,7 @@ class CloudSQLBackend(backend.Backend):
                 specified, retrieves info all metric.
 
         Returns:
-            (dict): Collection of data for the requested metric, keyed by the
+            (dict) Collection of data for the requested metric, keyed by the
             data type.  If no metric was requested, returns a dict of these
             collections (a dict inside a dict), keyed by metric name.
         """
@@ -103,7 +114,7 @@ class CloudSQLBackend(backend.Backend):
                 the backend data store, keyed by metric name.
 
         Raises:
-            EditError: If the requested updates could not be applied.
+            backend.EditError: The requested updates could not be applied.
         """
         if request_type != backend.RequestType.DELETE:
             new_data = dict((k, v)
@@ -162,7 +173,7 @@ class CloudSQLBackend(backend.Backend):
             locale (string): Locale for which data should be loaded.
 
         Returns:
-            (dict): Result data from the query, with keys "locale" and "value".
+            (dict) Result data from the query, with keys "locale" and "value".
         """
         query = ('SELECT locale, value'
                  '  FROM %s'
@@ -201,7 +212,7 @@ class CloudSQLBackend(backend.Backend):
                 specifies the type of locale to retrieve data on.
 
         Returns:
-            (dict): Result data from the query, with keys "locale", "name",
+            (dict) Result data from the query, with keys "locale", "name",
             "parent", "lat" (latitude), and "lon" (longitude).
         """
         query = ('SELECT locale, name, parent, lat, lon'

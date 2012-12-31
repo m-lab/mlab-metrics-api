@@ -14,9 +14,7 @@
 #
 # Author: Dylan Curley
 
-"""This module ...
-
-todo: Lots more text.
+"""This module contains classes and functions for dealing with Locale data.
 """
 
 from datetime import datetime
@@ -35,9 +33,13 @@ _last_locale_refresh = datetime.fromtimestamp(0)
 
 
 class Error(Exception):
+    """Common exception that all other exceptions in this module inherit from.
+    """
     pass
 
 class RefreshError(Error):
+    """An error occured refreshing locale data.
+    """
     pass
 
 
@@ -102,13 +104,15 @@ class LocaleFinder(object):
     coordinates.
     """
     def __init__(self):
-        """Constructor."""
+        """Constructor.
+        """
         self._countries = None
         self._regions = None
         self._cities = None
 
     class GeoTree(object):
-        """
+        """Tree that holds geographically located data.
+
         GeoTree implements a KD-Tree to store a set of Lat-Lon geo locations so
         that it can then resolve queries for a nearest neighbor to a given
         Lat-Lon coordinate.
@@ -289,6 +293,16 @@ class LocaleFinder(object):
 
 
 def refresh(backend, locale_dict, localefinder):
+    """Refreshes data in the passed locale dict and locale finder.
+
+    Args:
+        backend (Backend object): Datastore backend to refresh data from.
+        locale_dict (dict): Dictionary to hold locale information.
+        localefinder (LocaleFinder object): LocaleFinder to be refreshed.
+
+    Raises:
+        RefreshError: The locale data could not be refreshed.
+    """
     #todo: move the "refresh" logic to its own file.
     global _last_locale_refresh
 

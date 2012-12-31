@@ -14,9 +14,7 @@
 #
 # Author: Dylan Curley
 
-"""This module ...
-
-todo: Lots more text.
+"""This module contains classes and functions for dealing with Metric data.
 """
 
 from datetime import datetime
@@ -35,15 +33,21 @@ _last_metrics_info_refresh = datetime.fromtimestamp(0)
 
 
 class Error(Exception):
+    """Common exception that all other exceptions in this module inherit from.
+    """
     pass
 
 class LoadError(Error):
+    """An error occured loading metric data.
+    """
     pass
-
 class LookupError(Error):
+    """An error occured querying or looking up metric data.
+    """
     pass
-
 class RefreshError(Error):
+    """An error occured refreshing metric data.
+    """
     pass
 
 
@@ -214,8 +218,19 @@ def DetermineLocaleType(locale_str):
 def edit_metric(request_type, backend, metrics_dict, metric_name, units=None,
                 short_desc=None, long_desc=None, query=None, delete=False):
     """Update values for the given metric.
+
+    Args:
+        request_type (string): They type of request, from backend.RequestType.
+        backend (Backend object): Datastore backend to update.
+        metrics_dict (dict): Dictionary containing metrics data.
+        metric_name (string): Metric to update.
+        units (string): New units. Defaults to None.
+        short_desc (string): New short description. Defaults to None.
+        long_desc (string): New long description. Defaults to None.
+        query (string): New BigQuery query. Defaults to None.
+        delete (bool): Whether to delete this metric. Defautls to False.
     """
-    _update_metrics_info(backend, metrics_dict, force=True)
+    refresh(backend, metrics_dict, force=True)
 
     if delete:
         del metrics_dict[metric_name]
@@ -230,13 +245,18 @@ def edit_metric(request_type, backend, metrics_dict, metric_name, units=None,
     backend.SetMetricInfo(request_type, metric_name, infos)
 
 
-def refresh(backend, metrics_dict):
-    #todo: move the "refresh" logic to its own file.
-    _update_metrics_info(backend, metrics_dict)
-    _update_metrics_data(backend, metrics_dict)
+def refresh(backend, metrics_dict, force=False):
+    """Refreshes data in the passed metrics dict.
 
+    Only metrics 'info' is updated. Metrics 'data' is updated on query.
 
-def _update_metrics_info(backend, metrics_dict, force=False):
+    Args:
+        backend (Backend object): Datastore backend to refresh data from.
+        metrics_dict (dict): Dictionary to hold metrics information.
+
+    Raises:
+        LoadError: The locale data could not be refreshed.
+    """
     #todo: move the "refresh" logic to its own file.
     global _last_metrics_info_refresh
 
@@ -269,9 +289,3 @@ def _update_metrics_info(backend, metrics_dict, force=False):
             metrics_dict[new_metric] = metric
     
     _last_metrics_info_refresh = datetime.now()
-
-
-def _update_metrics_data(backend, metrics_dict):
-    #todo: move the "refresh" logic to its own file.
-    # Do nothing here.  Metrics data will be updated on query.
-    pass
