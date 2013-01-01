@@ -220,3 +220,26 @@ class CloudSQLBackend(backend.Backend):
                  ' WHERE type="%s"' %
                  (LOCALES_TABLE, locale_type))
         return self._cloudsql.Query(query)
+
+    def SetLocaleData(self, locale_type, locale, name, parent, lat, lon):
+        """Sets/updates a locale in the database.
+        
+        Args:
+            locale_type (string): Type of locale ("city" "region" "country").
+            locale (string): Locale ID.
+            name (string): Locale name.
+            parent (string): Parent locale ID.
+            lat (float): Latitude, south is negative.
+            lon (float): Longitude, west is negative.
+        """
+        query = ('DELETE'
+                 '  FROM %s'
+                 ' WHERE locale="%s"' %
+                 (LOCALES_TABLE, locale))
+        self._cloudsql.Query(query)
+
+        query = ('INSERT'
+                 '  INTO %s'
+                 '   SET type="%s",locale="%s",name="%s",parent="%s",lat=%f,lon=%f' %
+                 (LOCALES_TABLE, locale_type, locale, name, parent, lat, lon))
+        self._cloudsql.Query(query)

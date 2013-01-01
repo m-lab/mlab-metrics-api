@@ -85,6 +85,36 @@ country,
 region,
 city
 """ }
+_LOCALES_QUERY = """
+SELECT
+connection_spec.client_geolocation.country_name as country_name,
+connection_spec.client_geolocation.country_code3 as country_id,
+connection_spec.client_geolocation.region as region_id,
+connection_spec.client_geolocation.city as city_name,
+connection_spec.client_geolocation.latitude as latitude,
+connection_spec.client_geolocation.longitude as longitude
+
+FROM
+[%(table_name)s]
+
+WHERE
+IS_EXPLICITLY_DEFINED(project)
+AND project = 0
+AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.country_name)
+AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.country_code3)
+AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.region)
+AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.city)
+AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.latitude)
+AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.longitude)
+
+GROUP BY
+country_name,
+country_id,
+region_id,
+city_name,
+latitude,
+longitude
+"""
 
 
 def HANDLERS():
@@ -216,10 +246,55 @@ class LocaleWorker(object):
         self._backends = backends
 
     def UpdateLocales(self):
-        """Updates all locales based on the last 30 days of data.
+        """Updates all locales based on last month's data.
         """
-        #todo: Update locales based on last 30 days of data.
-        pass
+        # Calculate last month.
+        today = datetime.date.today()
+        first = datetime.date(day=1, month=today.month, year=today.year)
+        last_month = first - datetime.timedelta(days=1)
+        date_tup = (last_month.year, last_month.month)
+
+        # Generate the query string.
+        table = '%s.%s' % (big_query_backend.DATASET,
+                           big_query_backend.DATE_TABLES_FMT % date_tup)
+        query = _LOCALES_QUERY % {'table_name': table}
+
+        # Build the lists of cities, regions, and countries.
+        total_rows = 0
+        results = self._backends.bigquery.RawQuery(query)
+        cities = []
+        regions = set()
+        countries = set()
+        for row in results.Rows():
+            total_rows += 1
+
+            row_d = dict(zip(result_set.ColumnNames(), row))
+            row_d['city_id'] = base64.b32encode(row_d['city_name'].encode('utf-8'))
+            row_d['region_name'] = row_d['region_id']
+
+            city = '_'.join([row_d['country_id'], row_d['region_id'], row_d['city_id']])
+            region = '_'.join([row_d['country_id'], row_d['region_id']])
+            country = row_d['country_id']
+            latitude = float(row_d['latitude'])
+            longitude = float(row_d['longitude'])
+
+            cities.append((city, row_d['city_name'], region, latitude, longitude)
+            regions.add((region, row_d['region_name'], country))
+            countries.add((country, row_d['country_name']))
+
+        # Update cities, regions, and countries in the datastore.
+        for city in cities:
+            locale, name, parent, lat, lon = city
+            self._backends.cloudsql.SetLocaleData(
+                'city', locale, name, parent, lat, lon)
+        for region in regions:
+            locale, name, parent = region
+            self._backends.cloudsql.SetLocaleData(
+                'region', locale, name, parent, 0.0, 0.0)
+        for country in countries:
+            locale, name = country
+            self._backends.cloudsql.SetLocaleData(
+                'country', locale, name, 'world', 0.0, 0.0)
 
 
 class MetricWorker(object):
