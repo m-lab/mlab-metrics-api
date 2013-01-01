@@ -29,8 +29,6 @@ from deps.kdtree import KDTree
 # Timeout when cached locales should be considered old.
 LOCALE_REFRESH_RATE = timedelta(days=2)
 
-_last_locale_refresh = datetime.fromtimestamp(0)
-
 
 class Error(Exception):
     """Common exception that all other exceptions in this module inherit from.
@@ -74,20 +72,118 @@ class Locale(object):
         self.parent = parent
         self.children = []
 
-    def Describe(self):
-        """Describes the locale in terms that are considered useful.
-        
-        Returns:
-            (dict) Representation of the locale as a dict.  Specifically,
-            { 'name': (string) <locale ID>,
-              'long_name': (string) <locale long/common name>,
-              'latitude': (float) <latitude>,
-              'longitude': (float) <longitude> }
+
+class LocalesManager(object):
+    """Manage locale data, specifically hiding the details of data caching.
+    """
+    def __init__(self, backend):
+        """Constructor.
+
+        Args:
+            backend (Backend object): Datastore backend.
         """
-        return {'name': self.name,
-                'long_name': self.long_name,
-                'latitude': self.latitude,
-                'longitude': self.longitude}
+        self.disable_refresh = False
+        self._backend = backend
+        self._locales = None
+        self._locales_by_type = None
+        self._last_refresh = datetime.fromtimestamp(0)
+
+    def Exists(self, locale):
+        """Whether or not a given locale exists.
+
+        Args:
+            locale (string): Locale ID.
+
+        Returns:
+            (bool) True if the locale exists and can be queried, otherwise false.
+        """
+        self._Refresh()
+        return locale in self._locales
+
+    def Locale(self, locale):
+        """Retrieves the given locale.
+
+        Args:
+            locale (string): Locale ID.
+
+        Raises:
+            KeyError: The locale doesn't exist.
+
+        Returns:
+            (Locale) The locale object.
+        """
+        if not self.Exists(locale):
+            raise KeyError('Unknown locale: %s' % locale)
+
+        return self._locales[locale]
+
+    def LocalesByType(self, locale_type):
+        """Retrieves all locale IDs for the specified type.
+
+        Valid locale types are 'world', 'country', 'region', 'city'.
+
+        Args:
+            locale (string): Locale ID.
+
+        Raises:
+            KeyError: The locale type doesn't exist.
+
+        Returns:
+            (list) List of locale IDs, as strings.
+        """
+        self._Refresh()
+        if locale_type not in self._locales_by_type:
+            raise KeyError('Unknown locale type: %s' % locale_type)
+
+        return self._locales_by_type[locale_type]
+
+    def ForceRefresh(self):
+        """Forces a refresh of the internal locale data.
+        """
+        self._last_refresh = datetime.fromtimestamp(0)
+        self._Refresh()
+
+    def _Refresh(self):
+        """Refreshes LocalesManager data at most every 'LOCALE_REFRESH_RATE'.
+        """
+        if self.disable_refresh:
+            return
+
+        if datetime.now() - self._last_refresh < LOCALE_REFRESH_RATE:
+            return
+ 
+        # Start fresh, since locales may have been removed.
+        locales_by_type = {'world': ['world'], 'country': [], 'region': [], 'city': []}
+        locales = {'world': Locale('world')}
+ 
+        # Build Locales in largest-to-smallest order so that parent references
+        # can be resolved.
+        for locale_type in ('country', 'region', 'city'):
+            try:
+                info = self._backend.GetLocaleData(locale_type)
+            except backend_interface.LoadError as e:
+                logging.error('Failed to refresh locales: %s' % e)
+                if self._locales is None:  # First refresh. Cannot fail silently.
+                    raise RefreshError(e)
+ 
+            # Parse and build Locales into the dict.
+            for row in info['data']:
+                locale, name, parent, lat, lon = row
+ 
+                locales[locale] = Locale(
+                    locale, name, float(lat), float(lon), parent)
+                locales_by_type[locale_type].append(locale)
+ 
+                # Add child references if the parent exists.
+                if parent in locales:
+                    locales[parent].children.append(locale)
+                else:
+                    locales[locale].parent = None
+ 
+        # Update data members.
+        self._locales = locales
+        self._locales_by_type = locales_by_type
+        self._last_refresh = datetime.now()
 
 
 class LocaleFinder(object):
@@ -103,12 +199,14 @@ class LocaleFinder(object):
     lookup of nearest locales neighboring a given set of latitude and logitude
     coordinates.
     """
-    def __init__(self):
+    def __init__(self, backend):
         """Constructor.
         """
+        self._backend = backend
         self._countries = None
         self._regions = None
         self._cities = None
+        self._last_refresh = datetime.fromtimestamp(0)
 
     class GeoTree(object):
         """Tree that holds geographically located data.
@@ -119,28 +217,27 @@ class LocaleFinder(object):
 
         After construction GeoTree is immutable.
         
-        GeoTree works by accepting a list of 'locales' (keys) and a dict of 
-        'locale_data'.  For convenience, the 'locales' are presumed to be a
-        subset of the 'locale_data'.  It then constructs a GeoTree by converting
-        each item from Lat-Lon coordinates into Cartesian (3-D), and building a
-        KD-Tree.  This allows relatively efficient lookup for finding the
-        nearest neighbor to a given Lat-Lon coordinate.
+        GeoTree works by accepting a list of 'target_locales' (IDs) and a
+        'locales_manager' (LocalesManager) from which to request locale data.
+        It then constructs a GeoTree by converting each locale from Lat-Lon
+        coordinates into Cartesian (3-D), and building a KD-Tree.  This allows
+        relatively efficient lookup for finding the nearest neighbor to a given
+        Lat-Lon coordinate.
         """
-        def __init__(self, locales, locale_data):
+        def __init__(self, target_locales, locales_manager):
             """Constructor.
 
             Args:
-                locales (list): List of locales to pull out of the passed dict
-                    of locale data.
-                locale_data (dict): Collection of locale data, keyed on locale
-                    name.
+                target_locales (list): List of locales to pull out of the passed
+                    LocaleManager.
+                locale_manager (LocaleManager object): Locale manager.
             """
             self._data = []  # pairs of (coordinates, locale)
 
-            for locale in locales:
-                cart = self._LatLonToCartesian(locale_data[locale].latitude,
-                                               locale_data[locale].longitude)
-                self._data.append((cart, locale))
+            for tgt in target_locales:
+                locale = locales_manager.Locale(tgt)
+                cart = self._LatLonToCartesian(locale.latitude, locale.longitude)
+                self._data.append((cart, tgt))
 
             self._ReportCollisions()
             self._tree = KDTree(3, self._data)
@@ -238,6 +335,7 @@ class LocaleFinder(object):
         Returns:
             (string) Locale name for the nearest country.  For example '123'.
         """
+        self._Refresh()
         return self._countries.FindNearestNeighbor(lat, lon)
 
     def FindNearestRegion(self, lat, lon):
@@ -250,6 +348,7 @@ class LocaleFinder(object):
         Returns:
             (string) Locale name for the nearest region.  For example '123_g'.
         """
+        self._Refresh()
         return self._regions.FindNearestNeighbor(lat, lon)
 
     def FindNearestCity(self, lat, lon):
@@ -262,85 +361,25 @@ class LocaleFinder(object):
         Returns:
             (string) Locale name for the nearest city.  For example '123_g_abc'.
         """
+        self._Refresh()
         return self._cities.FindNearestNeighbor(lat, lon)
 
-    def UpdateCountries(self, countries, locale_data):
-        """Updates the list of known countries.
-
-        Args:
-            locales (list): Countries to pull out of the passed locale data.
-            locale_data (dict): Collection of locale data, keyed on locale name.
+    def _Refresh(self):
+        """Refreshes LocaleFinder data at most every 'LOCALE_REFRESH_RATE'.
         """
-        self._countries = self.GeoTree(countries, locale_data)
+        if datetime.now() - self._last_refresh < LOCALE_REFRESH_RATE:
+            return
 
-    def UpdateRegions(self, regions, locale_data):
-        """Updates the list of known regions.
+        lm = LocalesManager(self._backend)
+        lm.ForceRefresh()
+        lm.disable_refresh = True  # Not necessary to refresh from here on.
 
-        Args:
-            locales (list): Regions to pull out of the passed locale data.
-            locale_data (dict): Collection of locale data, keyed on locale name.
-        """
-        self._regions = self.GeoTree(regions, locale_data)
-
-    def UpdateCities(self, cities, locale_data):
-        """Updates the list of known cities.
-
-        Args:
-            locales (list): Cities to pull out of the passed locale data.
-            locale_data (dict): Collection of locale data, keyed on locale name.
-        """
-        self._cities = self.GeoTree(cities, locale_data)
-
-
-def refresh(backend, locale_dict, localefinder):
-    """Refreshes data in the passed locale dict and locale finder.
-
-    Args:
-        backend (Backend object): Datastore backend to refresh data from.
-        locale_dict (dict): Dictionary to hold locale information.
-        localefinder (LocaleFinder object): LocaleFinder to be refreshed.
-
-    Raises:
-        RefreshError: The locale data could not be refreshed.
-    """
-    #todo: move the "refresh" logic to its own file.
-    global _last_locale_refresh
-
-    locale_age = datetime.now() - _last_locale_refresh
-    if locale_age < LOCALE_REFRESH_RATE:
-        return
-
-    locales_by_type = {'country': [], 'region': [], 'city': []}
-
-    #todo: empty & refill locale_dict because locales may have been removed
-    if 'world' not in locale_dict:
-        locale_dict['world'] = Locale('world')
-
-    # Must build Locales in largest-to-smallest order so that parent references
-    # can be resolved.
-    for locale_type in ('country', 'region', 'city'):
-        try:
-            info = backend.GetLocaleData(locale_type)
-        except backend_interface.LoadError as e:
-            raise RefreshError(e)
-
-        # Parse and build Locales into the locale_dict.
-        for row in info['data']:
-            locale, name, parent, lat, lon = row
-
-            locale_dict[locale] = Locale(
-                locale, name, float(lat), float(lon), parent)
-            locales_by_type[locale_type].append(locale)
-
-            # Add child references if the parent exists.
-            if parent in locale_dict:
-                locale_dict[parent].children.append(locale)
-            else:
-                locale_dict[locale].parent = None
-
-    _last_locale_refresh = datetime.now()
-
-    # Build the LocaleFinder for quick nearest-neighbor lookup.
-    localefinder.UpdateCountries(locales_by_type['country'], locale_dict)
-    localefinder.UpdateRegions(locales_by_type['region'], locale_dict)
-    localefinder.UpdateCities(locales_by_type['city'], locale_dict)
+        countries = self.GeoTree(lm.LocalesByType('country'), lm)
+        regions = self.GeoTree(lm.LocalesByType('region'), lm)
+        cities = self.GeoTree(lm.LocalesByType('city'), lm)
+ 
+        # Update data members.
+        self._countries = countries
+        self._regions = regions
+        self._cities = cities
+        self._last_refresh = datetime.now()

@@ -42,11 +42,11 @@ class SyntaxError(Error):
     pass
 
 
-def HandleLocaleQuery(locales_data, locale):
+def HandleLocaleQuery(locales_manager, locale):
     """Verifies passed arguments and issues a lookup of locale data.
 
     Args:
-        locales_data (dict): All data known about locales, keyed by locale name.
+        locales_manager (LocalesManager object): Locale manager.
         locale (string): Name of the locale to be queried.
 
     Raises:
@@ -56,20 +56,19 @@ def HandleLocaleQuery(locales_data, locale):
     Returns:
         (dict) Data about the requested locale.
     """
-    if locale not in locales_data:
-        raise LookupError('Locale "%s" does not exist.' % locale)
+    try:
+        locale = locales_manager.Locale(locale)
+    except KeyError as e:
+        raise LookupError(e)
 
-    reply = {'locale': locales_data[locale].Describe()}
-    if locales_data[locale].parent is None:
-        if locale != 'world':
-            reply['parent'] = {'name': 'world'}
-    else:
-        reply['parent'] = locales_data[locales_data[locale].parent].Describe()
-
-    if len(locales_data[locale].children):
-        reply['children'] = [locales_data[c].Describe() for c in
-                             locales_data[locale].children]
-    return reply
+    return {'locale': {'name': locale.name,
+                       'long_name': locale.long_name,
+                       'latitude': locale.latitude,
+                       'longitude': locale.longitude
+                      },
+            'parent': locale.parent,
+            'children': locale.children
+           }
 
 
 def HandleMetricQuery(metrics_data, metric, locale, year, month):

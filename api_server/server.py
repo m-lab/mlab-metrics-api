@@ -38,8 +38,8 @@ from common import metrics
 import query_engine
 
 _backend = None
-_locale_finder = locales.LocaleFinder()
-_locales_data = dict()
+_locale_finder = None
+_locales_manager = None
 _metrics_data = dict()
 
 
@@ -52,8 +52,16 @@ def start(backend):
         backend (Backend object): Datastore backend.
     """
     global _backend
+    global _locale_finder
+    global _locales_manager
 
-    _backend = backend
+    # AppEngine restarts the app for every request, but global data persists
+    # across restarts so there's rarely reason to recreate it.
+    if None in (_backend, _locale_finder, _locales_manager):
+        _backend = backend
+        _locale_finder = locales.LocaleFinder(_backend)
+        _locales_manager = locales.LocalesManager(_backend)
+
     run_wsgi_app(bottle.default_app())
 
 
@@ -74,12 +82,7 @@ def locale_api_query(locale_name):
         errors.
     """
     try:
-        locales.refresh(_backend, _locales_data, _locale_finder)
-    except locales.RefreshError as e:
-        return {'error': '%s' % e}
-
-    try:
-        return query_engine.HandleLocaleQuery(_locales_data, locale_name)
+        return query_engine.HandleLocaleQuery(_locales_manager, locale_name)
     except query_engine.Error as e:
         return {'error': '%s' % e}
 
@@ -140,11 +143,6 @@ def nearest_api_query():
     """
     lat = request.GET.get('lat', None)
     lon = request.GET.get('lon', None)
-
-    try:
-        locales.refresh(_backend, _locales_data, _locale_finder)
-    except locales.RefreshError as e:
-        return {'error': '%s' % e}
 
     try:
         return query_engine.HandleNearestNeighborQuery(
