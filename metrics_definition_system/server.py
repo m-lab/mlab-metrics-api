@@ -30,10 +30,39 @@ from common import backend as backend_interface
 from common import metrics
 
 _backend = None
-_metrics_data = dict()
+_metrics_manager = None
 _client_secrets = OAuth2DecoratorFromClientSecrets(
     os.path.join(os.path.dirname(__file__), 'client_secrets.json'),
     scope='https://www.googleapis.com/auth/bigquery')
+
+
+def start(backend):
+    """Start the web framework on AppEngine.
+
+    This function never returns.
+
+    Args:
+        backend (Backend object): Datastore backend.
+    """
+    global _backend
+    global _metrics_manager
+
+    # AppEngine restarts the app for every request, but global data persists
+    # across restarts so there's rarely reason to recreate it.
+    if None in (_backend, _metrics_manager):
+        _backend = backend
+        _metrics_manager = metrics.MetricsManager(_backend)
+
+    application = webapp.WSGIApplication(
+        [('/',        IntroPageHandler),
+         ('/intro',   IntroPageHandler),
+         ('/metrics', ListMetricsPageHandler),
+         ('/edit',    EditMetricPageHandler),
+         ('/delete',  DeleteMetricPageHandler),
+         ('/new',     NewMetricPageHandler),
+         ('/contact', ContactUsPageHandler)],
+        debug=True)
+    run_wsgi_app(application)
 
 
 class Error(Exception):
@@ -56,41 +85,6 @@ def _TemplateFile(filename):
             return
         return wrapped
     return wrapper
-
-
-def _RefreshMetricsData(http):
-    try:
-        _backend.SetClientHTTP(http)
-        metrics.refresh(_backend, _metrics_data)
-        _backend.SetClientHTTP(None)  #todo: finally?
-    except metrics.RefreshError as e:
-        raise RefreshError(e)
-
-    if not len(_metrics_data):
-        raise RefreshError('The metric database is empty.')
-
-
-def start(backend):
-    """Start the web framework on AppEngine.
-
-    This function never returns.
-
-    Args:
-        backend (Backend object): Datastore backend.
-    """
-    global _backend
-
-    _backend = backend
-    application = webapp.WSGIApplication(
-        [('/',        IntroPageHandler),
-         ('/intro',   IntroPageHandler),
-         ('/metrics', ListMetricsPageHandler),
-         ('/edit',    EditMetricPageHandler),
-         ('/delete',  DeleteMetricPageHandler),
-         ('/new',     NewMetricPageHandler),
-         ('/contact', ContactUsPageHandler)],
-        debug=True)
-    run_wsgi_app(application)
 
 
 class IntroPageHandler(webapp.RequestHandler):
@@ -132,15 +126,25 @@ class ListMetricsPageHandler(webapp.RequestHandler):
                 'note': self.request.get('note', default_value=None),
                 'error': self.request.get('error', default_value=None)}
 
+        _backend.SetClientHTTP(_client_secrets.http())
         try:
-            _RefreshMetricsData(_client_secrets.http())
-        except RefreshError as e:
+            metric_names = _metrics_manager.MetricNames()
+        except metrics.RefreshError as e:
             view['error'] = '%s' % e
+            return view
+ 
+        if not len(metric_names):
+            view['error'] = 'The metric database is empty.'
             return view
 
         # Pump the view with details for all metrics.
-        for metric_name in _metrics_data:
-            view['metrics'].append(_metrics_data[metric_name].Describe())
+        for metric_name in metric_names:
+            metric = _metrics_manager.Metric(metric_name)
+            view['metrics'].append({'name'      : metric.name,
+                                    'short_desc': metric.short_desc,
+                                    'long_desc' : metric.long_desc,
+                                    'units'     : metric.units,
+                                    'query'     : metric.query})
         logging.debug('ListMetrics view: %s' % view)
         return view
 
@@ -162,22 +166,26 @@ class EditMetricPageHandler(webapp.RequestHandler):
                 'note': self.request.get('note', default_value=None),
                 'error': self.request.get('error', default_value=None)}
 
-        try:
-            _RefreshMetricsData(_client_secrets.http())
-        except RefreshError as e:
-            view['error'] = '%s' % e
-            return view
-
         metric_name = self.request.get('metric', default_value=None)
         if metric_name is None:
             self.redirect('/metrics')
 
-        if metric_name not in _metrics_data:
+        _backend.SetClientHTTP(_client_secrets.http())
+        try:
+            metric = _metrics_manager.Metric(metric_name)
+        except metrics.LookupError:
             view['error'] = ('No such metric: <span id="metric_name">%s</span>'
                              % metric_name)
             return view
+        except metrics.Error as e:
+            view['error'] = '%s' % e
+            return view
 
-        view['metric'] = _metrics_data[metric_name].Describe()
+        view['metric'] = {'name'      : metric.name,
+                          'short_desc': metric.short_desc,
+                          'long_desc' : metric.long_desc,
+                          'units'     : metric.units,
+                          'query'     : metric.query}
         return view
 
     @_client_secrets.oauth_required
@@ -191,27 +199,16 @@ class EditMetricPageHandler(webapp.RequestHandler):
         short_desc = self.request.get('short_desc', default_value=None)
         long_desc = self.request.get('long_desc', default_value=None)
         query = self.request.get('query', default_value=None)
-        if name in _metrics_data:
-            request_type = backend_interface.RequestType.EDIT
-        else:
-            request_type = backend_interface.RequestType.NEW
-
-        logging.debug('POST: name="%s (%s)", units="%s", short_desc="%s", '
-                      'long_desc="%s", query="%s"' %
-                      (name, type(name), units, short_desc, long_desc, query))
 
         if None in (name, units, short_desc, long_desc, query):
             self.redirect('/metrics?error=Edit request was incomplete. Try '
                           'again or send us an email.')
             return
 
+        _backend.SetClientHTTP(_client_secrets.http())
         try:
-            _backend.SetClientHTTP(_client_secrets.http())
-            metrics.edit_metric(request_type, _backend, _metrics_data, name,
-                                units=units, short_desc=short_desc,
-                                long_desc=long_desc, query=query)
-            _backend.SetClientHTTP(None)  #todo: finally?
-        except metrics.RefreshError as e:
+            _metrics_manager.SetMetric(name, units, short_desc, long_desc, query)
+        except metrics.Error as e:
             self.redirect('/metrics?error=%s' % e)
             return
 
@@ -264,12 +261,10 @@ class DeleteMetricPageHandler(webapp.RequestHandler):
         """
         name = self.request.get('name', default_value=None)
 
+        _backend.SetClientHTTP(_client_secrets.http())
         try:
-            _backend.SetClientHTTP(_client_secrets.http())
-            metrics.edit_metric(backend_interface.RequestType.DELETE,
-                                _backend, _metrics_data, name, delete=True)
-            _backend.SetClientHTTP(None)  #todo: finally?
-        except metrics.RefreshError as e:
+            _metrics_manager.DeleteMetric(name)
+        except metrics.Error as e:
             self.redirect('/metrics?error=%s' % e)
             return
 

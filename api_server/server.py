@@ -40,7 +40,7 @@ import query_engine
 _backend = None
 _locale_finder = None
 _locales_manager = None
-_metrics_data = dict()
+_metrics_manager = None
 
 
 def start(backend):
@@ -54,13 +54,15 @@ def start(backend):
     global _backend
     global _locale_finder
     global _locales_manager
+    global _metrics_manager
 
     # AppEngine restarts the app for every request, but global data persists
     # across restarts so there's rarely reason to recreate it.
-    if None in (_backend, _locale_finder, _locales_manager):
+    if None in (_backend, _locale_finder, _locales_manager, _metrics_manager):
         _backend = backend
         _locale_finder = locales.LocaleFinder(_backend)
         _locales_manager = locales.LocalesManager(_backend)
+        _metrics_manager = metrics.MetricsManager(_backend)
 
     run_wsgi_app(bottle.default_app())
 
@@ -113,13 +115,8 @@ def metric_api_query(metric_name):
     locale = request.GET.get('locale', None)
 
     try:
-        metrics.refresh(_backend, _metrics_data)
-    except metrics.RefreshError as e:
-        return {'error': '%s' % e}
-
-    try:
         return query_engine.HandleMetricQuery(
-            _metrics_data, metric_name, locale, int(year), int(month))
+            _metrics_manager, metric_name, locale, int(year), int(month))
     except (query_engine.Error, ValueError) as e:
         return {'error': '%s' % e}
 
@@ -175,14 +172,13 @@ def metric_details(metric_name=None):
             return view
 
     try:
-        metrics.refresh(_backend, _metrics_data)
-    except metrics.RefreshError as e:
-        view['error'] = '%s' % e
-        return view
-
-    if metric_name not in _metrics_data:
+        metric = _metrics_manager.Metric(metric_name)
+    except metrics.LookupError:
         view['error'] = ('No such metric: <span id="metric_name">%s</span>'
                          % metric_name)
+        return view
+    except metrics.Error as e:
+        view['error'] = '%s' % e
         return view
 
     # Generate sample API query and its response.
@@ -191,11 +187,15 @@ def metric_details(metric_name=None):
     sample_month = 1
     try:
         sample_api_response = query_engine.HandleMetricQuery(
-            _metrics_data, metric_name, sample_locale, sample_year, sample_month)
+            _metrics_manager, metric_name, sample_locale, sample_year, sample_month)
     except query_engine.Error as e:
         sample_api_response = {'error': '%s' % e}
 
-    view['metric'] = _metrics_data[metric_name].Describe()
+    view['metric'] = {'name'      : metric.name,
+                      'short_desc': metric.short_desc,
+                      'long_desc' : metric.long_desc,
+                      'units'     : metric.units,
+                      'query'     : metric.query}
     view['sample_api_query'] = (
         '/api/metric/%s?year=%d&month=%d&locale=%s' %
         (metric_name, sample_year, sample_month, sample_locale))
@@ -221,18 +221,18 @@ def list_metrics():
     view = {'metrics': [], 'error': None}
 
     try:
-        metrics.refresh(_backend, _metrics_data)
+        metric_names = _metrics_manager.MetricNames()
     except metrics.RefreshError as e:
         view['error'] = '%s' % e
         return view
 
-    if not len(_metrics_data):
+    if not len(metric_names):
         view['error'] = 'The metric database is empty.'
         return view
 
-    for metric_name, metric in sorted(_metrics_data.iteritems()):
-        view['metrics'].append({'name': metric_name,
-                                'short_desc': metric.short_desc})
+    for metric_name in sorted(metric_names):
+        short_desc = _metrics_manager.Metric(metric_name).short_desc
+        view['metrics'].append({'name': metric_name, 'short_desc': short_desc})
 
     return view
 

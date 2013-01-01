@@ -61,64 +61,29 @@ class Metric(object):
     request and should be fast for all subsequent requests (until the cache
     expires).
     """
-    def __init__(self, backend, name, load_info=True):
+    def __init__(self, name, units, short_desc, long_desc, query):
         """Constructor.
 
         Args:
-            backend (object): Backend interface, e.g. BigQueryBackend.
             name (string): This metric's name.
+            units (string): Units the metric is measured in.
+            short_desc (string): Short description.
+            long_desc (string): Long description.
+            query (string): BigQuery query string to compute this metric.
         """
-        self._backend = backend
         self.name = name
-        self.short_desc = None
-        self.long_desc = None
-        self.units = None
-        self.query = None
-        self.data = dict()
+        self.units = units
+        self.short_desc = short_desc
+        self.long_desc = long_desc
+        self.query = query
+        self._data = dict()
         self._metadata = dict()
 
-        if load_info:
-            self._LoadInfo()
-    
-    def Describe(self):
-        """Describes this metric.
- 
-        Returns:
-            (dict) Information about this metric in a dict.  Specifically,
-            { 'name': (string) <metric name>,
-              'short_desc': (string) <short description>,
-              'long_desc': (string) <long description>,
-              'units': (string) <metric units>,
-              'query': (string) <bigquery query that produced this metric> }
-        """
-        return {'name'               : self.name,
-                'short_desc'         : self.short_desc,
-                'long_desc'          : self.long_desc,
-                'units'              : self.units,
-                'query'              : self.query}
-
-    def Update(self, units=None, short_desc=None, long_desc=None, query=None):
-        """Updates the metric with passed data.
-
-        Args:
-            units (optional, string): Metric units, e.g. 'Mbps'.
-            short_desc (optional, string): Short text description.
-            long_desc (optional, string): Long text description.
-            query (optional, string): BigQuery query that produces this metric.
-        """
-        if units is not None:
-            self.units = units
-        if short_desc is not None:
-            self.short_desc = short_desc
-        if long_desc is not None:
-            self.long_desc = long_desc
-        if query is not None:
-            self.query = query
-
-    def Lookup(self, year, month, locale):
+    def Lookup(self, backend, year, month, locale):
         """Looks up metric data for a given year, month, and locale.
 
         Args:
+            backend (Backend): Datastore backend.
             year (int): Year to retrieve.
             month (int): Month to retrieve.
             locale (int): Locale for which metric data should be given.
@@ -139,40 +104,23 @@ class Metric(object):
             self._metadata[date] = dict()
         self._metadata[date]['last_request_time'] = datetime.now()
 
-        if date not in self.data or locale not in self.data[date]:
-            self._LoadData(date, locale)
+        if date not in self._data or locale not in self._data[date]:
+            self._LoadData(backend, date, locale)
 
-        if date not in self.data or locale not in self.data[date]:
+        if date not in self._data or locale not in self._data[date]:
             raise LookupError('No data for metric=%s, year=%d, month=%d,'
                               ' locale=%s.' % (self.name, year, month, locale))
 
         return {'metric': self.name,
                 'units' : self.units,
-                'value' : self.data[date][locale]}
+                'value' : self._data[date][locale]}
 
-    def _LoadInfo(self):
-        """Loads/updates metadata for this metric from the backend datastore.
-
-        The metric info is not returned, it's loaded into memory so that it can
-        be queried later.
-        """
-        try:
-            info = self._backend.GetMetricInfo()
-        except backend_interface.LoadError as e:
-            raise LoadError(e)
-
-        for field in info:
-            if field == 'name':
-                continue
-            self.__dict__[field] = result[field]
-
-    def _LoadData(self, date, locale):
+    def _LoadData(self, backend, date, locale):
         """Loads/updates data for this metric from the backend datastore.
 
         The metric data is not returned, it's loaded into memory so that it can
         be queried later.
         """
-        #todo: move the "load/update" logic out of the metric class.
         locale_type = DetermineLocaleType(locale)
         m_key = (date, locale_type)
         if m_key not in self._metadata:
@@ -184,16 +132,183 @@ class Metric(object):
         self._metadata[m_key]['last_load_time'] = datetime.now()
 
         try:
-            info = self._backend.GetMetricData(self.name, date, locale)
+            info = backend.GetMetricData(self.name, date, locale)
         except backend_interface.LoadError as e:
-            raise LoadError(e)
+            raise RefreshError(e)
 
-        if date not in self.data:
-            self.data[date] = dict()
+        if date not in self._data:
+            self._data[date] = dict()
 
         for row in info['data']:
             locale, value = row
-            self.data[date][locale] = float(value)
+            self._data[date][locale] = float(value)
+
+
+class MetricsManager(object):
+    """Manage metrics data, specifically hiding the details of data caching.
+    """
+    def __init__(self, backend):
+        """Constructor.
+
+        Args:
+            backend (Backend object): Datastore backend.
+        """
+        self._backend = backend
+        self._metrics = {}
+        self._last_refresh = datetime.fromtimestamp(0)
+
+    def Exists(self, metric):
+        """Whether or not a given metric exists.
+
+        Args:
+            metric (string): Metric name.
+
+        Raises:
+            RefreshError: An error occurred while refreshing the metric cache.
+
+        Returns:
+            (bool) True if the metric exists and can be queried, otherwise false.
+        """
+        self._Refresh()
+        return metric in self._metrics
+
+    def MetricNames(self):
+        """Retrieves all metric names.
+
+        Raises:
+            RefreshError: An error occurred while refreshing the metric cache.
+
+        Returns:
+            (list) List of metric names, as strings.
+        """
+        self._Refresh()
+        return self._metrics.keys()
+
+    def Metric(self, metric):
+        """Retrieves the given metric.
+
+        Args:
+            metric (string): Metric name.
+
+        Raises:
+            LookupError: The metric doesn't exist.
+            RefreshError: An error occurred while refreshing the metric cache.
+
+        Returns:
+            (Metric) The metric object.
+        """
+        if not self.Exists(metric):
+            raise LookupError('Unknown metric: %s' % metric)
+
+        return self._metrics[metric]
+
+    def SetMetric(self, metric, units, short_desc, long_desc, query):
+        """Creates or updates the metric with the passed values.
+
+        Args:
+            metric (string): Metric name.
+            units (string): Units the metric is measured in.
+            short_desc (string): Short description.
+            long_desc (string): Long description.
+            query (string): BigQuery query string to compute this metric.
+
+        Raises:
+            RefreshError: An error occurred while refreshing the metric cache.
+        """
+        if not self.Exists(metric):
+            request_type = backend_interface.RequestType.NEW
+        else:
+            request_type = backend_interface.RequestType.EDIT
+
+        self._metrics[metric] = Metric(metric, units, short_desc, long_desc, query)
+        infos = dict((m, {'name'      : self._metrics[m].name,
+                          'short_desc': self._metrics[m].short_desc,
+                          'long_desc' : self._metrics[m].long_desc,
+                          'units'     : self._metrics[m].units,
+                          'query'     : self._metrics[m].query})
+                     for m in self._metrics)
+        self._backend.SetMetricInfo(request_type, metric, infos)
+
+    def DeleteMetric(self, metric):
+        """Deletes the given metric and all of its data.
+
+        Args:
+            metric (string): Metric name.
+
+        Raises:
+            LookupError: The metric doesn't exist.
+            RefreshError: An error occurred while refreshing the metric cache.
+        """
+        if not self.Exists(metric):
+            raise LookupError('Unknown metric: %s' % metric)
+
+        del self._metrics[metric]
+        self._backend.SetMetricInfo(backend_interface.RequestType.DELETE,
+                                    metric, None)
+
+    def LookupResult(self, metric, year, month, locale):
+        """Looks up metric data for a given year, month, and locale.
+
+        Args:
+            metric (string): Metric name.
+            year (int): Year to retrieve.
+            month (int): Month to retrieve.
+            locale (int): Locale for which metric data should be given.
+
+        Raises:
+            LookupError: If the requested metric or data doesn't exist.
+            RefreshError: An error occurred while refreshing the metric cache.
+
+        Returns:
+            (dict) The requested data as a dict.  Specifically,
+            { 'metric': (string) <metric name>,
+              'units': (string) <metric units>,
+              'value': (float) <metric value> }
+        """
+        if not self.Exists(metric):
+            raise LookupError('Unknown metric: %s' % metric)
+
+        return self._metrics[metric].Lookup(self._backend, year, month, locale)
+
+    def ForceRefresh(self):
+        """Forces a refresh of the internal metrics data.
+        """
+        self._last_refresh = datetime.fromtimestamp(0)
+        self._Refresh()
+
+    def _Refresh(self):
+        """Refreshes MetricsManager data at most every 'METRICS_REFRESH_RATE'.
+        """
+        if datetime.now() - self._last_refresh < METRICS_REFRESH_RATE:
+            return
+
+        try:
+            metric_infos = self._backend.GetMetricInfo()
+        except backend_interface.LoadError as e:
+            raise RefreshError(e)
+
+        available_metrics = set(metric_infos.keys())
+        known_metrics = set(self._metrics.keys())
+        old_metrics_for_deletion = known_metrics - available_metrics
+        new_metrics_to_be_loaded = available_metrics - known_metrics
+        logging.info('Old metrics for deletion: %s'
+                     % ' '.join(old_metrics_for_deletion))
+        logging.info('New metrics to be loaded: %s'
+                     % ' '.join(new_metrics_to_be_loaded))
+ 
+        # Update data members.
+        if available_metrics != known_metrics:
+            for old_metric in old_metrics_for_deletion:
+                del self._metrics[old_metric]
+            for new_metric in new_metrics_to_be_loaded:
+                self._metrics[new_metric] = Metric(
+                    new_metric,
+                    metric_infos[new_metric]['units'],
+                    metric_infos[new_metric]['short_desc'],
+                    metric_infos[new_metric]['long_desc'],
+                    metric_infos[new_metric]['query'])
+        
+        self._last_refresh = datetime.now()
 
 
 def DetermineLocaleType(locale_str):
@@ -213,79 +328,3 @@ def DetermineLocaleType(locale_str):
     depth = len(locale_str.split('_'))
 
     return depth_map[depth]
-
-
-def edit_metric(request_type, backend, metrics_dict, metric_name, units=None,
-                short_desc=None, long_desc=None, query=None, delete=False):
-    """Update values for the given metric.
-
-    Args:
-        request_type (string): They type of request, from backend.RequestType.
-        backend (Backend object): Datastore backend to update.
-        metrics_dict (dict): Dictionary containing metrics data.
-        metric_name (string): Metric to update.
-        units (string): New units. Defaults to None.
-        short_desc (string): New short description. Defaults to None.
-        long_desc (string): New long description. Defaults to None.
-        query (string): New BigQuery query. Defaults to None.
-        delete (bool): Whether to delete this metric. Defautls to False.
-    """
-    refresh(backend, metrics_dict, force=True)
-
-    if delete:
-        del metrics_dict[metric_name]
-    else:
-        if metric_name not in metrics_dict:
-            metrics_dict[metric_name] = Metric(backend, metric_name,
-                                               load_info=False)
-        metrics_dict[metric_name].Update(units=units, short_desc=short_desc,
-                                         long_desc=long_desc, query=query)
-
-    infos = dict((m, metrics_dict[m].Describe()) for m in metrics_dict)
-    backend.SetMetricInfo(request_type, metric_name, infos)
-
-
-def refresh(backend, metrics_dict, force=False):
-    """Refreshes data in the passed metrics dict.
-
-    Only metrics 'info' is updated. Metrics 'data' is updated on query.
-
-    Args:
-        backend (Backend object): Datastore backend to refresh data from.
-        metrics_dict (dict): Dictionary to hold metrics information.
-
-    Raises:
-        LoadError: The locale data could not be refreshed.
-    """
-    #todo: move the "refresh" logic to its own file.
-    global _last_metrics_info_refresh
-
-    metrics_age = datetime.now() - _last_metrics_info_refresh
-    if metrics_age < METRICS_REFRESH_RATE and not force:
-        return
-
-    try:
-        metric_infos = backend.GetMetricInfo()
-    except backend_interface.LoadError as e:
-        raise LoadError(e)
-        
-    available_metrics = set(metric_infos.keys())
-    known_metrics = set(metrics_dict.keys())
-    old_metrics_for_deletion = known_metrics - available_metrics
-    new_metrics_to_be_loaded = available_metrics - known_metrics
-    logging.info('Old metrics for deletion: %s',
-                 ' '.join(old_metrics_for_deletion))
-    logging.info('New metrics to be loaded: %s',
-                 ' '.join(new_metrics_to_be_loaded))
-
-    if available_metrics != known_metrics:
-        for old_metric in old_metrics_for_deletion:
-            del metrics_dict[old_metric]
-        for new_metric in new_metrics_to_be_loaded:
-            info = metric_infos[new_metric]
-            metric = Metric(backend, new_metric, load_info=False)
-            metric.Update(units=info['units'], short_desc=info['short_desc'],
-                          long_desc=info['long_desc'], query=info['query'])
-            metrics_dict[new_metric] = metric
-    
-    _last_metrics_info_refresh = datetime.now()

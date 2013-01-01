@@ -94,6 +94,9 @@ class LocalesManager(object):
         Args:
             locale (string): Locale ID.
 
+        Raises:
+            RefreshError: An error occurred while refreshing the locale cache.
+
         Returns:
             (bool) True if the locale exists and can be queried, otherwise false.
         """
@@ -108,6 +111,7 @@ class LocalesManager(object):
 
         Raises:
             KeyError: The locale doesn't exist.
+            RefreshError: An error occurred while refreshing the locale cache.
 
         Returns:
             (Locale) The locale object.
@@ -127,6 +131,7 @@ class LocalesManager(object):
 
         Raises:
             KeyError: The locale type doesn't exist.
+            RefreshError: An error occurred while refreshing the locale cache.
 
         Returns:
             (list) List of locale IDs, as strings.

@@ -71,11 +71,11 @@ def HandleLocaleQuery(locales_manager, locale):
            }
 
 
-def HandleMetricQuery(metrics_data, metric, locale, year, month):
+def HandleMetricQuery(metrics_manager, metric, locale, year, month):
     """Verifies passed arguments and issues a lookup of metric data.
 
     Args:
-        metrics_data (dict): All known data about metrics, keyed by metric name.
+        metrics_manager (MetricsManager object): Metrics manager.
         metric (string): Name of the metric to be queried.
         locale (string): Locale of interest.
         year (int): Year of interest.
@@ -99,10 +99,6 @@ def HandleMetricQuery(metrics_data, metric, locale, year, month):
         raise SyntaxError('Must provide a parameter "name" identifying the'
                           ' metric you wish to query.')
 
-    if metric not in metrics_data:
-        raise LookupError('Unknown metric "%s".  Valid metrics are %s' % 
-                          (metric, ', '.join(metrics_data)))
-
     if year is None or month is None:
         raise SyntaxError('Must provide parameters "year" and "month"'
                           ' identifying the date you wish to query.')
@@ -114,7 +110,7 @@ def HandleMetricQuery(metrics_data, metric, locale, year, month):
 
     # Lookup & return the data.
     try:
-        data = metrics_data[metric].Lookup(year, month, locale)
+        data = metrics_manager.LookupResult(metric, year, month, locale)
     except metrics.Error as e:
         raise LookupError(e)
 
