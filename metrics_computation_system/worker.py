@@ -268,7 +268,7 @@ class MetricWorker(object):
         self._ComputeMetricData(metric, date)
         logging.info('Work completed.')
 
-    def UpdateMetric(metric, date):
+    def UpdateMetric(self, metric, date):
         """Updates (recomputes) the given metric at the given date.
 
         Args:
