@@ -17,6 +17,7 @@
 """This module runs the web server to handle user & API requests.
 """
 
+import httplib
 import logging
 import os
 import re
@@ -34,6 +35,7 @@ _metrics_manager = None
 _client_secrets = OAuth2DecoratorFromClientSecrets(
     os.path.join(os.path.dirname(__file__), 'client_secrets.json'),
     scope='https://www.googleapis.com/auth/bigquery')
+_COMPUTATION_SYSTEM = 'mlab-metrics-computation.appspot.com'
 
 
 def start(backend):
@@ -211,6 +213,16 @@ class EditMetricPageHandler(webapp.RequestHandler):
         except metrics.Error as e:
             self.redirect('/metrics?error=%s' % e)
             return
+
+        # Send update (recomputation) request to MetComp.
+        try:
+            conn = httplib.HTTPConnection(_COMPUTATION_SYSTEM, timeout=10)
+            conn.request('GET', '/update?metric=%s' % name)
+            res = conn.getresponse()
+            logging.debug('Sent UPDATE request to MetDef: %s %s'
+                          % (res.status, res.reason))
+        except Exception as e:
+            logging.error('Failed to send UPDATE request to MetDef: %s' % e)
 
         self.redirect('/metrics?note=Metric %s saved successfully.' % name)
 
