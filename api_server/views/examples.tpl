@@ -65,33 +65,12 @@ these API calls work.
         "latitude": 10.31854,
         "longitude": -68.080330000000004
     },
-    "parent":
-    {
-        "name": "862",
-        "long_name": "Venezuela",
-        "latitude": 6.4237500000000001,
-        "longitude": -66.589730000000003
-    },
+    "parent": "862",
     "children":
     [
-        {
-            "name": "862_g_guacara",
-            "long_name": "Guacara",
-            "latitude": 10.25381,
-            "longitude": -67.900413999999998
-        },
-        {
-            "name": "862_g_puerto-cabello",
-            "long_name": "Puerto-cabello",
-            "latitude": 10.46828,
-            "longitude": -68.011641999999995
-        },
-        {
-            "name": "862_g_valencia",
-            "long_name": "Valencia",
-            "latitude": 10.17822,
-            "longitude": -68.003112999999999
-        }
+        "862_g_guacara",
+        "862_g_puerto-cabello",
+        "862_g_valencia"
     ]
 }
 </pre>
