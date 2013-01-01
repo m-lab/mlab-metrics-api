@@ -245,6 +245,7 @@ class MetricsManager(object):
         del self._metrics[metric]
         self._backend.SetMetricInfo(backend_interface.RequestType.DELETE,
                                     metric, None)
+        self._backend.DeleteMetricData(metric)
 
     def LookupResult(self, metric, year, month, locale):
         """Looks up metric data for a given year, month, and locale.
