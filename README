@@ -1,1 +1,17 @@
-todo: add text
+Welcome, traveller.
+
+These directories contain 3 applications for LabView, a Harvard Extension School
+thesis project by Dylan L Curley. Each of these applications are designed to be
+run on Google AppEngine. Presently they run at:
+    http://mlab-metrics-definition.appspot.com
+    http://mlab-metrics-computation.appspot.com
+    http://mlab-metrics-api-server.appspot.com
+
+For the latest code please see the open-source Google Code project:
+    http://code.google.com/p/mlab-metrics-api-server/
+
+Dylan L Curley can be contacted at:
+    dylan.curley@gmail.com
+
+Thank you!
+- Dylan
