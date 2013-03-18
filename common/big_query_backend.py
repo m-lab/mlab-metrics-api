@@ -32,7 +32,7 @@ from metrics import DetermineLocaleType
 PROJECT_ID = 'measurement-lab'
 DATASET = 'm_lab'
 LOCALES_TABLE = '_locales'
-METADATA_TABLE = '_metadata'
+METADATA_TABLE = 'definitions'
 
 DATE_TABLES_RE = r'^([1-9][0-9]{3})_([0-9]{2})$'
 DATE_TABLES_FMT = r'%04d_%02d'
@@ -179,7 +179,7 @@ class BigQueryBackend(backend.Backend):
     def GetMetricInfo(self, metric_name=None):
         #todo: figure out how to query once for all metrics (it's not that much
         #      data) instead of querying once for each metric
-        """Retrieves metadata for the specified metric, from BigQuery.
+        """Retrieves the definition of the specified metric, from BigQuery.
 
         Args:
             metric_name (string): Name of the metric to query.  If None or not

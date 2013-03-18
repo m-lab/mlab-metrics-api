@@ -52,10 +52,10 @@ class RefreshError(Error):
 
 
 class Metric(object):
-    """A single metric, including metadata and all associated data.
+    """A single metric, including its definition and all associated data.
 
     Note that this class also deals with the filesystem and makes certain
-    assumptions about how data (and metadata) is laid out on disk.  Also, data
+    assumptions about how data (and definitions) are represented.  Also, data
     is loaded on demand instead of up front.  This is intended to mitigate RAM
     usage at the expense of load time, but load time is only impacted on first
     request and should be fast for all subsequent requests (until the cache

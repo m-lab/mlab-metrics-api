@@ -29,7 +29,7 @@ from metrics import DetermineLocaleType
 INSTANCE = 'mlab-metrics:database'
 DATABASE = 'mlab_metrics'
 LOCALES_TABLE = '_locales'
-METADATA_TABLE = '_metadata'
+METADATA_TABLE = 'definitions'
 SAMPLE_METRIC_TABLE = 'num_of_clients'  # Expect 'num_of_clients' metric exists.
 
 
@@ -75,7 +75,7 @@ class CloudSQLBackend(backend.Backend):
         self._cloudsql.Query(query)
 
     def GetMetricInfo(self, metric_name=None):
-        """Retrieves metadata for the specified metric, from CloudSQL.
+        """Retrieves the definition of the specified metric, from CloudSQL.
 
         Args:
             metric_name (string): Name of the metric to query.  If None or not
