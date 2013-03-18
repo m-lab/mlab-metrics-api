@@ -52,7 +52,7 @@ Author: Dylan Curley
 		</tr>
 	<tr><th class="lbl">Query</th>
 		<td class="info">
-			{{ metric.query }}
+			<pre>{{ metric.query }}</pre>
 			</td>
 		</tr>
 </table>
