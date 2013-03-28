@@ -226,7 +226,9 @@ class CloudSQLBackend(backend.Backend):
                  ' WHERE locales.type_id = locale_types.id'
                  '   AND locale_types.name = "%s"' %
                  (LOCALES_TABLE, LOCALE_TYPES_TABLE, locale_type))
-        return self._cloudsql.Query(query)
+        data = self._cloudsql.Query(query)
+        logging.debug(data)
+        return data
 
     def SetCityData(self, locale, name, parent, lat, lon):
         """Sets/updates the passed city locale data.

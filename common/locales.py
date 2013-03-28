@@ -175,15 +175,21 @@ class LocalesManager(object):
             # Parse and build Locales into the dict.
             for row in info['data']:
                 locale_id, locale, name, parent_id, lat, lon = row
+                locale_id = int(locale_id)
+                parent_id = int(parent_id)
+                if lat is not None:
+                    lat = float(lat)
+                if lon is not None:
+                    lon = float(lon)
  
-                locales[locale] = Locale(
-                    locale, name, float(lat), float(lon), parent_id)
+                locales[locale] = Locale(locale, name, lat, lon, None)
                 locales_by_type[locale_type].append(locale)
                 locales_by_id[locale_id] = locale
  
                 # Add child references if the parent exists.
                 if parent_id in locales_by_id:
-                    locales[locales_by_id[parent]].children.append(locale)
+                    locales[locales_by_id[parent_id]].children.append(locale)
+                    locales[locale].parent = locales_by_id[parent_id]
                 else:
                     locales[locale].parent = None
  
@@ -210,8 +216,6 @@ class LocaleFinder(object):
         """Constructor.
         """
         self._backend = backend
-        self._countries = None
-        self._regions = None
         self._cities = None
         self._last_refresh = datetime.fromtimestamp(0)
 
@@ -343,7 +347,7 @@ class LocaleFinder(object):
             (string) Locale name for the nearest country.  For example '123'.
         """
         self._Refresh()
-        return self._countries.FindNearestNeighbor(lat, lon)
+        return self._cities.FindNearestNeighbor(lat, lon).parent.parent
 
     def FindNearestRegion(self, lat, lon):
         """Finds the nearest region to given coordinates.
@@ -356,7 +360,7 @@ class LocaleFinder(object):
             (string) Locale name for the nearest region.  For example '123_g'.
         """
         self._Refresh()
-        return self._regions.FindNearestNeighbor(lat, lon)
+        return self._cities.FindNearestNeighbor(lat, lon).parent
 
     def FindNearestCity(self, lat, lon):
         """Finds the nearest city to given coordinates.
@@ -381,12 +385,8 @@ class LocaleFinder(object):
         lm.ForceRefresh()
         lm.disable_refresh = True  # Not necessary to refresh from here on.
 
-        countries = self.GeoTree(lm.LocalesByType('country'), lm)
-        regions = self.GeoTree(lm.LocalesByType('region'), lm)
         cities = self.GeoTree(lm.LocalesByType('city'), lm)
  
         # Update data members.
-        self._countries = countries
-        self._regions = regions
         self._cities = cities
         self._last_refresh = datetime.now()
