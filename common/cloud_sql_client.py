@@ -56,7 +56,6 @@ class CloudSQLClient(object):
         # Issue the query.
         conn = rdbms.connect(instance=self._instance, database=self._database)
         cursor = conn.cursor()
-        #logging.debug('Issuing query: %s' % query)
         cursor.execute(query)
 
         # Parse the response data into a more convenient dict, with members
@@ -67,6 +66,7 @@ class CloudSQLClient(object):
             result = { 'fields': tuple(d[0] for d in cursor.description),
                        'data': cursor.fetchall() }
 
+        conn.commit()
         conn.close()
         return result
 

@@ -17,7 +17,6 @@
 """This module contains logic for carrying out create/modify/delete tasks.
 """
 
-import base64
 from collections import defaultdict
 import datetime
 import logging
@@ -25,6 +24,7 @@ import numpy
 import pprint
 import re
 import time
+import urllib
 
 from google.appengine.api import runtime
 from google.appengine.api import taskqueue
@@ -42,15 +42,15 @@ _DATE_FMT = r'%04d_%02d'
 _MIN_ENTRIES_THRESHOLD = 100
 _MAX_RESULTS_PER_CYCLE = 300000
 _COUNTRY_SPLITS = (
-    'AND connection_spec.client_geolocation.country_code3 < "N"',
-    'AND connection_spec.client_geolocation.country_code3 >= "N"',
+    'AND connection_spec.client_geolocation.country_code < "N"',
+    'AND connection_spec.client_geolocation.country_code >= "N"',
     )
 _STANDARD_QUERY_PARAMS = {
     'select': """
 web100_log_entry.connection_spec.remote_ip as client_ip,
 web100_log_entry.connection_spec.local_ip as server_ip,
 
-connection_spec.client_geolocation.country_code3 as country,
+connection_spec.client_geolocation.country_code as country,
 connection_spec.client_geolocation.region as region,
 connection_spec.client_geolocation.city as city
 """,
@@ -62,7 +62,7 @@ AND project = 0
 AND IS_EXPLICITLY_DEFINED(web100_log_entry.connection_spec.remote_ip)
 AND IS_EXPLICITLY_DEFINED(web100_log_entry.connection_spec.local_ip)
 
-AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.country_code3)
+AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.country_code)
 AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.region)
 AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.city)
 %(country_split)s
@@ -87,8 +87,7 @@ city
 """ }
 _LOCALES_QUERY = """
 SELECT
-connection_spec.client_geolocation.country_name as country_name,
-connection_spec.client_geolocation.country_code3 as country_id,
+connection_spec.client_geolocation.country_code as country_id,
 connection_spec.client_geolocation.region as region_id,
 connection_spec.client_geolocation.city as city_name,
 connection_spec.client_geolocation.latitude as latitude,
@@ -100,15 +99,13 @@ FROM
 WHERE
 IS_EXPLICITLY_DEFINED(project)
 AND project = 0
-AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.country_name)
-AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.country_code3)
+AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.country_code)
 AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.region)
 AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.city)
 AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.latitude)
 AND IS_EXPLICITLY_DEFINED(connection_spec.client_geolocation.longitude)
 
 GROUP BY
-country_name,
 country_id,
 region_id,
 city_name,
@@ -259,42 +256,27 @@ class LocaleWorker(object):
                            big_query_backend.DATE_TABLES_FMT % date_tup)
         query = _LOCALES_QUERY % {'table_name': table}
 
-        # Build the lists of cities, regions, and countries.
+        # Parse results, update cities in the datastore.
         total_rows = 0
         results = self._backends.bigquery.RawQuery(query)
         cities = []
-        regions = set()
-        countries = set()
         for row in results.Rows():
-            total_rows += 1
 
-            row_d = dict(zip(result_set.ColumnNames(), row))
-            row_d['city_id'] = base64.b32encode(row_d['city_name'].encode('utf-8'))
-            row_d['region_name'] = row_d['region_id']
-
-            city = '_'.join([row_d['country_id'], row_d['region_id'], row_d['city_id']])
-            region = '_'.join([row_d['country_id'], row_d['region_id']])
-            country = row_d['country_id']
+            row_d = dict(zip(results.ColumnNames(), row))
+            row_d['city_id'] = urllib.quote(row_d['city_name'].encode('utf-8'))
+            locale = '_'.join([row_d['country_id'], row_d['region_id'], row_d['city_id']])
+            if row_d['region_id'] == '00':
+                parent = row_d['country_id']
+            else:
+                parent = '_'.join([row_d['country_id'], row_d['region_id']])
             latitude = float(row_d['latitude'])
             longitude = float(row_d['longitude'])
 
-            cities.append((city, row_d['city_name'], region, latitude, longitude)
-            regions.add((region, row_d['region_name'], country))
-            countries.add((country, row_d['country_name']))
+            if self._backends.cloudsql.SetCityData(
+                locale, row_d['city_name'], parent, latitude, longitude):
+                total_rows += 1
 
-        # Update cities, regions, and countries in the datastore.
-        for city in cities:
-            locale, name, parent, lat, lon = city
-            self._backends.cloudsql.SetLocaleData(
-                'city', locale, name, parent, lat, lon)
-        for region in regions:
-            locale, name, parent = region
-            self._backends.cloudsql.SetLocaleData(
-                'region', locale, name, parent, 0.0, 0.0)
-        for country in countries:
-            locale, name = country
-            self._backends.cloudsql.SetLocaleData(
-                'country', locale, name, 'world', 0.0, 0.0)
+        logging.info('Added/updated %d cities.' % total_rows)
 
 
 class MetricWorker(object):
@@ -460,7 +442,7 @@ class MetricWorker(object):
                 total_rows += 1
 
                 row_d = dict(zip(result_set.ColumnNames(), row))
-                row_d['city'] = base64.b32encode(row_d['city'].encode('utf-8'))
+                row_d['city'] = urllib.quote(row_d['city'].encode('utf-8'))
                 row_d['value'] = float(row_d['value'])
 
                 city = '_'.join([row_d['country'], row_d['region'], row_d['city']])

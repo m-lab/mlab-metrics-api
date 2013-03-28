@@ -28,7 +28,8 @@ from metrics import DetermineLocaleType
 
 INSTANCE = 'mlab-metrics:database'
 DATABASE = 'mlab_metrics'
-LOCALES_TABLE = '_locales'
+LOCALE_TYPES_TABLE = 'locale_types'
+LOCALES_TABLE = 'locales'
 METADATA_TABLE = 'definitions'
 SAMPLE_METRIC_TABLE = 'num_of_clients'  # Expect 'num_of_clients' metric exists.
 
@@ -43,6 +44,11 @@ class CloudSQLBackend(backend.Backend):
             cloudsql (object): CloudSQL client instance.
         """
         self._cloudsql = cloudsql
+        self._city_ids_by_name = None
+        self._country_ids_by_name = None
+        self._region_ids_by_name = None
+        self._type_ids_by_name = None
+
         super(CloudSQLBackend, self).__init__()
 
     def ExistingDates(self, metric_name=SAMPLE_METRIC_TABLE):
@@ -215,10 +221,11 @@ class CloudSQLBackend(backend.Backend):
             (dict) Result data from the query, with keys "locale", "name",
             "parent", "lat" (latitude), and "lon" (longitude).
         """
-        query = ('SELECT locale, name, parent, lat, lon'
-                 '  FROM %s'
-                 ' WHERE type="%s"' %
-                 (LOCALES_TABLE, locale_type))
+        query = ('SELECT locales.id, locale, locales.name, parent_id, lat, lon'
+                 '  FROM %s, %s'
+                 ' WHERE locales.type_id = locale_types.id'
+                 '   AND locale_types.name = "%s"' %
+                 (LOCALES_TABLE, LOCALE_TYPES_TABLE, locale_type))
         return self._cloudsql.Query(query)
 
     def SetLocaleData(self, locale_type, locale, name, parent, lat, lon):
@@ -229,8 +236,8 @@ class CloudSQLBackend(backend.Backend):
             locale (string): Locale ID.
             name (string): Locale name.
             parent (string): Parent locale ID.
-            lat (float): Latitude, south is negative.
-            lon (float): Longitude, west is negative.
+            lat (float): Latitude, south is negative. Only set for cities.
+            lon (float): Longitude, west is negative. Only set for cities.
         """
         query = ('DELETE'
                  '  FROM %s'
@@ -243,3 +250,79 @@ class CloudSQLBackend(backend.Backend):
                  '   SET type="%s",locale="%s",name="%s",parent="%s",lat=%f,lon=%f' %
                  (LOCALES_TABLE, locale_type, locale, name, parent, lat, lon))
         self._cloudsql.Query(query)
+
+    def SetCityData(self, locale, name, parent, lat, lon):
+        # Determine all locale types, and their associated keys.
+        if self._type_ids_by_name is None:
+            query = ('SELECT id, name'
+                     '  FROM %s' %
+                     LOCALE_TYPES_TABLE)
+            types = self._cloudsql.Query(query)
+            self._type_ids_by_name = dict((t[1], int(t[0])) for t in types['data'])
+
+        if 'city' not in self._type_ids_by_name or 'region' not in self._type_ids_by_name:
+            raise KeyError('Locale types (%s) do not include "city" or "region". '
+                           'Cannot insert city "%s".' % (self._type_ids_by_name, name))
+        type_id = self._type_ids_by_name['city']
+
+        # Determine all parents (regions/countries), and their associated keys.
+        if self._region_ids_by_name is None:
+            query = ('SELECT id, locale'
+                     '  FROM %s'
+                     ' WHERE type_id=%d' %
+                     (LOCALES_TABLE, self._type_ids_by_name['region']))
+            regions = self._cloudsql.Query(query)
+            self._region_ids_by_name = dict((r[1], int(r[0])) for r in regions['data'])
+
+        if self._country_ids_by_name is None:
+            query = ('SELECT id, locale'
+                     '  FROM %s'
+                     ' WHERE type_id=%d' %
+                     (LOCALES_TABLE, self._type_ids_by_name['country']))
+            countries = self._cloudsql.Query(query)
+            self._country_ids_by_name = dict((c[1], int(c[0])) for c in countries['data'])
+
+        if parent in self._region_ids_by_name:
+            parent_id = self._region_ids_by_name[parent]
+        elif parent in self._country_ids_by_name:
+            parent_id = self._country_ids_by_name[parent]
+        else:
+            logging.error('Cannot find parent locale "%s". Cannot insert city "%s".' %
+                          (parent, name))
+            return False
+
+        # Determine all cities, and their associated keys.
+        if self._city_ids_by_name is None:
+            query = ('SELECT id, locale'
+                     '  FROM %s'
+                     ' WHERE type_id=%d' %
+                     (LOCALES_TABLE, self._type_ids_by_name['city']))
+            cities = self._cloudsql.Query(query)
+            self._city_ids_by_name = dict((c[1], int(c[0])) for c in cities['data'])
+
+        # If this city exists then update it, otherwise insert it.
+        if locale in self._city_ids_by_name:
+            city_id = self._city_ids_by_name[locale]
+            query = ('UPDATE %s'
+                     '   SET name="%s", parent_id=%d, lat=%f, lon=%f'
+                     ' WHERE id=%d' %
+                     (LOCALES_TABLE, name, parent_id, lat, lon, city_id))
+            self._cloudsql.Query(query)
+
+        else:
+            query = ('INSERT'
+                     '  INTO %s'
+                     '   SET locale="%s", name="%s", parent_id=%d, lat=%f, lon=%f, type_id=%d' %
+                     (LOCALES_TABLE, locale, name, parent_id, lat, lon, type_id))
+            self._cloudsql.Query(query)
+            query = ('SELECT id'
+                     '  FROM %s'
+                     ' WHERE locale = "%s"' %
+                     (LOCALES_TABLE, locale))
+            city_id = self._cloudsql.Query(query)
+            if city_id is None or len(city_id['data']) == 0:
+                raise KeyError('Failed to insert city "%s" locale "%s".' %
+                               (name, locale))
+            self._city_ids_by_name[locale] = city_id['data'][0][0]
+
+        return True
