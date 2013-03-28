@@ -218,8 +218,8 @@ class CloudSQLBackend(backend.Backend):
                 specifies the type of locale to retrieve data on.
 
         Returns:
-            (dict) Result data from the query, with keys "locale", "name",
-            "parent", "lat" (latitude), and "lon" (longitude).
+            (dict) Result data from the query, with keys "id", "locale", "name",
+            "parent_id", "lat" (latitude), and "lon" (longitude).
         """
         query = ('SELECT locales.id, locale, locales.name, parent_id, lat, lon'
                  '  FROM %s, %s'
@@ -228,30 +228,16 @@ class CloudSQLBackend(backend.Backend):
                  (LOCALES_TABLE, LOCALE_TYPES_TABLE, locale_type))
         return self._cloudsql.Query(query)
 
-    def SetLocaleData(self, locale_type, locale, name, parent, lat, lon):
-        """Sets/updates a locale in the database.
-        
-        Args:
-            locale_type (string): Type of locale ("city" "region" "country").
-            locale (string): Locale ID.
-            name (string): Locale name.
-            parent (string): Parent locale ID.
-            lat (float): Latitude, south is negative. Only set for cities.
-            lon (float): Longitude, west is negative. Only set for cities.
-        """
-        query = ('DELETE'
-                 '  FROM %s'
-                 ' WHERE locale="%s"' %
-                 (LOCALES_TABLE, locale))
-        self._cloudsql.Query(query)
-
-        query = ('INSERT'
-                 '  INTO %s'
-                 '   SET type="%s",locale="%s",name="%s",parent="%s",lat=%f,lon=%f' %
-                 (LOCALES_TABLE, locale_type, locale, name, parent, lat, lon))
-        self._cloudsql.Query(query)
-
     def SetCityData(self, locale, name, parent, lat, lon):
+        """Sets/updates the passed city locale data.
+
+        Args:
+            locale (string): Full locale name, globally unique.
+            name (string): City name.
+            panent (string): Parent locale's full name, globally unique.
+            lat (float): Latitude of this city.
+            lon (float): Longitude of this city.
+        """
         # Determine all locale types, and their associated keys.
         if self._type_ids_by_name is None:
             query = ('SELECT id, name'

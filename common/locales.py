@@ -158,6 +158,7 @@ class LocalesManager(object):
             return
  
         # Start fresh, since locales may have been removed.
+        locales_by_id = {}
         locales_by_type = {'world': ['world'], 'country': [], 'region': [], 'city': []}
         locales = {'world': Locale('world')}
  
@@ -173,15 +174,16 @@ class LocalesManager(object):
  
             # Parse and build Locales into the dict.
             for row in info['data']:
-                locale, name, parent, lat, lon = row
+                locale_id, locale, name, parent_id, lat, lon = row
  
                 locales[locale] = Locale(
-                    locale, name, float(lat), float(lon), parent)
+                    locale, name, float(lat), float(lon), parent_id)
                 locales_by_type[locale_type].append(locale)
+                locales_by_id[locale_id] = locale
  
                 # Add child references if the parent exists.
-                if parent in locales:
-                    locales[parent].children.append(locale)
+                if parent_id in locales_by_id:
+                    locales[locales_by_id[parent]].children.append(locale)
                 else:
                     locales[locale].parent = None
  
