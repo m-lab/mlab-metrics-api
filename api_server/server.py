@@ -28,6 +28,7 @@ import os
 import re
 
 from deps import bottle
+from deps.bottle import response
 from deps.bottle import request
 from deps.bottle import route
 from deps.bottle import view
@@ -83,6 +84,7 @@ def locale_api_query(locale_name):
         (string) JSON describing either the requested locale or any lookup
         errors.
     """
+    response.headers['Access-Control-Allow-Origin'] = '*'  # Enable CORS.
     try:
         return query_engine.HandleLocaleQuery(_locales_manager, locale_name)
     except query_engine.Error as e:
@@ -109,6 +111,7 @@ def metric_api_query(metric_name):
         (string) JSON describing either the requested metric or any lookup
         errors.
     """
+    response.headers['Access-Control-Allow-Origin'] = '*'  # Enable CORS.
     #todo: allow 1 out of 3 GET params to be empty for broader queries
     year = request.GET.get('year', None)
     month = request.GET.get('month', None)
@@ -138,6 +141,7 @@ def nearest_api_query():
         (string) JSON describing either the locales nearest to the specified
         coordinates, or any error while attempting lookup.
     """
+    response.headers['Access-Control-Allow-Origin'] = '*'  # Enable CORS.
     lat = request.GET.get('lat', None)
     lon = request.GET.get('lon', None)
 
