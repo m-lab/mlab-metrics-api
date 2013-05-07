@@ -24,8 +24,7 @@ The API Server is designed to run on Google AppEngine.
 """
 
 import json
-import os
-import re
+import logging
 
 from deps import bottle
 from deps.bottle import response
@@ -128,10 +127,12 @@ def metric_api_query(metric_name):
 
     try:
         if endyear != None and endmonth != None:
+            logging.info('Redirecting to multi metric query')
             return query_engine.HandleMultiMetricQuery(
                 _metrics_manager, metric_name, locale, int(year), int(month),
                 int(endyear), int(endmonth))
         else:
+            logging.info('Redirecting to single metric query')
             return query_engine.HandleMetricQuery(
                 _metrics_manager, metric_name, locale, int(year), int(month))
     except (query_engine.Error, ValueError) as e:

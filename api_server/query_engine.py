@@ -158,10 +158,6 @@ def HandleMultiMetricQuery(metrics_manager, metric, locale,
         raise SyntaxError('Must provide parameters "endyear" and "endmonth"'
                           ' identifying the date you wish to query.')
 
-    if endyear < startyear or endmonth < startmonth:
-        raise SyntaxError('"endyear"-"endmonth" must be after'
-                          ' "startyear"-"startmonth"')
-
     if locale is None:
         raise SyntaxError('Must provide a parameter "locale" identifying the'
                           ' locale you wish to query.  For example, "", "100",'
@@ -171,14 +167,19 @@ def HandleMultiMetricQuery(metrics_manager, metric, locale,
     results = {}
     current_date = date(startyear, startmonth, 1)
     end_date = date(endyear, endmonth, 1)
+    if end_date < current_date:
+        raise SyntaxError('"endyear"-"endmonth" must be after'
+                          ' "startyear"-"startmonth"')
+
     logging.debug('getting multiple from ' + str(current_date) + ' to ' +
                   str(end_date))
     while current_date <= end_date:
         try:
             logging.debug('getting ' + metric + ' for ' + str(current_date))
             key = str(current_date.year) + '-' + str(current_date.month)
-            results[key] = metrics_manager.LookupResult(metric, current_date.year,
-                                                        current_date.month, locale)
+            results[key] = metrics_manager.LookupResult(
+                metric, current_date.year, current_date.month, locale)
+
         except metrics.Error as e:
             raise LookupError(e)
         new_month = current_date.month + 1
