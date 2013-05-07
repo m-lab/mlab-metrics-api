@@ -25,7 +25,7 @@ and longitude coordinates (HandleNearestNeighborQuery).
 import logging
 
 from common import metrics
-
+from datetime import date
 
 class Error(Exception):
     """Common exception that all other exceptions in this module inherit from.
@@ -110,6 +110,8 @@ def HandleMetricQuery(metrics_manager, metric, locale, year, month):
 
     # Lookup & return the data.
     try:
+        logging.debug('getting ' + metric + ' for ' + str(year) + '-' +
+                      str(month))
         data = metrics_manager.LookupResult(metric, year, month, locale)
     except metrics.Error as e:
         raise LookupError(e)
@@ -156,6 +158,10 @@ def HandleMultiMetricQuery(metrics_manager, metric, locale,
         raise SyntaxError('Must provide parameters "endyear" and "endmonth"'
                           ' identifying the date you wish to query.')
 
+    if endyear < startyear or endmonth < startmonth:
+        raise SyntaxError('"endyear"-"endmonth" must be after'
+                          ' "startyear"-"startmonth"')
+
     if locale is None:
         raise SyntaxError('Must provide a parameter "locale" identifying the'
                           ' locale you wish to query.  For example, "", "100",'
@@ -163,19 +169,24 @@ def HandleMultiMetricQuery(metrics_manager, metric, locale,
 
     # Lookup & return the data.
     results = {}
-    year = startyear
-    month = startmonth
-    while year < endyear or month <= endmonth:
+    current_date = date(startyear, startmonth, 1)
+    end_date = date(endyear, endmonth, 1)
+    logging.debug('getting multiple from ' + str(current_date) + ' to ' +
+                  str(end_date))
+    while current_date <= end_date:
         try:
-            key = str(year) + '-' + str(month)
-            results[key] = metrics_manager.LookupResult(
-                metric, year, month, locale)
+            logging.debug('getting ' + metric + ' for ' + str(current_date))
+            key = str(current_date.year) + '-' + str(current_date.month)
+            results[key] = metrics_manager.LookupResult(metric, current_date.year,
+                                                        current_date.month, locale)
         except metrics.Error as e:
             raise LookupError(e)
-        month = month + 1
-        if month == 13:
-            month = 1
-            year = year + 1
+        new_month = current_date.month + 1
+        new_year = current_date.year
+        if new_month == 13:
+            new_month = 1
+            new_year = new_year + 1
+        current_date = date(new_year, new_month, 1)
 
     return results
 

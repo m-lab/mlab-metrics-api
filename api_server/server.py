@@ -124,7 +124,7 @@ def metric_api_query(metric_name):
     # returned. If non-None, metric for every month from year-month to
     # endyear-endmonth is returned.
     endyear = request.GET.get('endyear', None)
-    endmonth = request.GET.get('endyear', None)
+    endmonth = request.GET.get('endmonth', None)
 
     try:
         if endyear != None and endmonth != None:
