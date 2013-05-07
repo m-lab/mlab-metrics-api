@@ -117,6 +117,69 @@ def HandleMetricQuery(metrics_manager, metric, locale, year, month):
     return data
 
 
+def HandleMultiMetricQuery(metrics_manager, metric, locale,
+                           startyear, startmonth, endyear, endmonth):
+    """Verifies passed arguments and issues a lookup of metric data.
+
+    Args:
+        metrics_manager (MetricsManager object): Metrics manager.
+        metric (string): Name of the metric to be queried.
+        locale (string): Locale of interest.
+        startyear (int): Start year of interest.
+        startmonth (int): Start month of interest.
+        endyear (int): End year of interest.
+        endmonth (int): End month of interest.
+
+    Raises:
+        LookupError: If an error occurred during lookup, eg, the requested
+        locale is unknown.
+        SyntaxError: If expected parameters are not provided (are None).
+
+    Returns:
+        (dict) Data about the requested metric for all years and months between
+        startyear-startmonth and endyear-endmonth inclusive.
+    """
+    # Anticipate non-standard locale= requests for world data.
+    if locale in ('', '""', "''", 'world', 'global'):
+        locale = 'world'
+
+    # Validate query parameters.
+    if metric is None:
+        raise SyntaxError('Must provide a parameter "name" identifying the'
+                          ' metric you wish to query.')
+
+    if startyear is None or startmonth is None:
+        raise SyntaxError('Must provide parameters "startyear" and "startmonth"'
+                          ' identifying the date you wish to query.')
+
+    if endyear is None or endmonth is None:
+        raise SyntaxError('Must provide parameters "endyear" and "endmonth"'
+                          ' identifying the date you wish to query.')
+
+    if locale is None:
+        raise SyntaxError('Must provide a parameter "locale" identifying the'
+                          ' locale you wish to query.  For example, "", "100",'
+                          ' "100_az", or "100_az_tucson".')
+
+    # Lookup & return the data.
+    results = {}
+    year = startyear
+    month = startmonth
+    while year < endyear or month <= endmonth:
+        try:
+            key = str(year) + '-' + str(month)
+            results[key] = metrics_manager.LookupResult(
+                metric, year, month, locale)
+        except metrics.Error as e:
+            raise LookupError(e)
+        month = month + 1
+        if month == 13:
+            month = 1
+            year = year + 1
+
+    return results
+
+
 def HandleNearestNeighborQuery(locale_finder, lat, lon):
     """Verifies passed arguments and issues a nearest neighbor lookup.
 

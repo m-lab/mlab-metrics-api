@@ -99,6 +99,9 @@ def metric_api_query(metric_name):
     request.  For example one should ask for a specific metric for Tokyo on July
     2011.
 
+    There are optional GET params "endyear" and "endmonth" that can be set to
+    get metrics for a range of time.
+
     This function will return a dict which is then JSONified by Bottle. If the
     requested metric does not exist or if any expected GET parameters are not
     specified, a JSON error is returned.  Otherwise metric details are returned
@@ -117,9 +120,20 @@ def metric_api_query(metric_name):
     month = request.GET.get('month', None)
     locale = request.GET.get('locale', None)
 
+    # These can be None, in which case just the metric for year-month is
+    # returned. If non-None, metric for every month from year-month to
+    # endyear-endmonth is returned.
+    endyear = request.GET.get('endyear', None)
+    endmonth = request.GET.get('endyear', None)
+
     try:
-        return query_engine.HandleMetricQuery(
-            _metrics_manager, metric_name, locale, int(year), int(month))
+        if endyear != None and endmonth != None:
+            return query_engine.HandleMultiMetricQuery(
+                _metrics_manager, metric_name, locale, int(year), int(month),
+                int(endyear), int(endmonth))
+        else:
+            return query_engine.HandleMetricQuery(
+                _metrics_manager, metric_name, locale, int(year), int(month))
     except (query_engine.Error, ValueError) as e:
         return {'error': '%s' % e}
 
